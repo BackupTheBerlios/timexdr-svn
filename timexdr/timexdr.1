@@ -1,0 +1,50 @@
+.TH TIMEXDR 1 "28 March 2005"
+.SH NAME
+TIMEXDR \- Timex Data Recorder control program
+.SH SYNOPSIS
+.B timexdr [-a|-e|-h]
+.SH DESCRIPTION
+.PP
+.B timexdr
+is utility that can download data from the Timex Data Recorder device.
+This device records heart rate monitor (HRM) and/or position data (GPS)
+transmitted from Timex Bodylink HRM and GPS sensors.
+.P
+Currently, it can only be used to dump the EEPROM memory content or to 
+download all HRM session data. The GPS or HRM+GPS session are ignored.
+.P
+Data are printed to the standard output (STDOUT). 
+.SH OPTIONS
+.TP
+.B \-a, --all-sessions
+Get data from all sessions. 
+.TP
+.B \-e, --eeprom-dump
+Dump the EEPROM memory content.
+.TP
+.B \-h
+Display usage information.
+.
+.SH FILES
+.TP 
+.B /proc/bus/usb/BBB/DDD
+Each connected USB has one file. The BBB indicates the bus number while 
+the DDD indicates the device address on that bus. Both numbers are assigned
+automatically.
+.P
+If /proc/bus/usb appears empty, and a host controller driver has been
+loaded, then you need to mount the usbfs filesystem. Issue the command 
+(as root):
+.P
+mount -t usbfs none /proc/bus/usb
+.P
+or as a more permanent alternative method add 
+.P
+usbfs /proc/bus/usb usbfs defaults 0 0
+.P
+to /etc/fstab. The usbfs support has to be compiled in the kernel.
+.P
+You must be able to write to the file /proc/bus/usb/BBB/DDD 
+to use this program or set the setuid-bit of the program. 
+.SH AUTHOR
+timexdr was written by Jan Merka <merka@highsphere.net>. 

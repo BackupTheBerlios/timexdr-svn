@@ -1,0 +1,5 @@
+Major stuff:
+	- Output GPS and multi-device sessions.
+	- Add option to clear EEPROM.
+Minor:
+	- More command line options to allow finer control of the output. 

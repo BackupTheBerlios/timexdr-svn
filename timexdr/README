@@ -1,0 +1,40 @@
+timexdr version 0.1
+2005/03/28 merka@highsphere.net
+
+1. WHAT IS IT?
+--------------
+
+timexdr is a userspace control utility for Timex Data Recorder. It 
+downloads heart rate monitor (HRM) and position (GPS) data from the
+device.
+
+2. REQUIREMENTS
+---------------
+
+You will need libusb shared libraries installed.
+
+The program has been tested with linux kernel 2.6.10 and libusb 0.1.10a.
+
+usbfs has to be mounted (and of course compiled into the kernel).
+
+3. INSTALLATION
+---------------
+
+The installation steps:
+
+	make
+	make install
+
+timexdr needs a write access to /proc/bus/usb/BBB/DDD where BBB is the
+USB bus number and DDD device number of the attached device. BBB and DDD
+can change every time the device is attached to the USB port. Therefore,
+you shouldn't rely on the BBB and DDD numbers. You can either allow write 
+access to all devices on usbfs file system or set the setuid-bit of timexdr.
+Please let me know if you know about a better solution.
+
+4. USAGE
+--------
+
+See the manual page:
+
+	man timexdr
