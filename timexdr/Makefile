@@ -5,7 +5,7 @@ CFLAGS = -Wall -W -g3
 SRC = timexdr.c
 OBJ = $(SRC:.c=.o)
 LIBS = -lusb
-DOCS = AUTHORS CHANGES LICENSE
+DOCS = AUTHORS CHANGES LICENSE README TODO
 PREFIX = /usr/local
 DESTBIN = $(PREFIX)/bin
 DESTMAN = $(PREFIX)/man/man1
@@ -20,7 +20,7 @@ clean:
 
 install:
 	install -m 755 -d $(DESTBIN)
-	install -m 755 timexdr $(DESTBIN)
+	install -m 4755 timexdr $(DESTBIN)
 	install -m 755 -d $(DESTMAN)
 	install -m 644 timexdr.1 $(DESTMAN)
 
