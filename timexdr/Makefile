@@ -1,6 +1,7 @@
 CC = gcc
-CFLAGS = -Wall -W -Wshadow -Wstrict-prototypes -Wcast-qual -Wcast-align \
-	 -Wwrite-strings -O2 -pipe -g3
+CFLAGS = -Wall -W -g3
+#CFLAGS = -Wall -W -Wshadow -Wstrict-prototypes -Wcast-qual -Wcast-align \
+#	 -Wwrite-strings -O2 -pipe -g3
 SRC = timexdr.c
 OBJ = $(SRC:.c=.o)
 LIBS = -lusb

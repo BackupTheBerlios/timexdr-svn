@@ -116,6 +116,39 @@
 
 #define TIMEXDR_CTRL_TIMEOUT   200         /* in miliseconds */
 
+
+/* Packet error codes */
+#define MISSING_PACKET              0x00
+#define CORRUPTED_PACKET            0x04
+
+/* GPS packets and profiles */
+
+#define PACKET_TYPE_ERROR           0x12   /* Missing/corrupted packet */
+#define PACKET_TYPE_1               0x15   /* status, speed, distance */
+#define PACKET_TYPE_2               0x25   /* altitude and heading */
+#define PACKET_TYPE_3               0x37   /* position */
+#define PACKET_TYPE_4               0x45   /* time and date */
+#define PACKET_TYPE_5               0x59   /* status, speed, distance, */ 
+					   /* altitude and heading */
+#define PACKET_TYPE_15              0xf0   /* everything */
+#define PACKET_TYPE_15_LENGTH         11   /* in bytes */
+
+#define PACKET_LENGTH_MASK          0x0f
+#define GPS_PACKET_MIN_LENGTH          2   /* in bytes */
+
+/* SNSR Status */
+#define SNSR_GPS_OK                 0x00
+#define SNSR_GPS_SYSFAILURE         0x09
+#define SNSR_ROMRAM_FAILURE         0x0a
+#define SNSR_OSCIL_DRIFT_FAILURE    0x0b
+#define SNSR_GPS_NO_CARRIER         0x01   /* Ready to power down */
+#define SNSR_GPS_NO_MOTION          0x02   /* Ready to power down */   
+#define SNSR_LOW_BATTERY            0x03   /* Ready to power down */
+
+/* Data units */
+#define SPEED_UNIT                  0.1    /* mph */
+#define DIST_UNIT                    0.001  /* mile */
+
 /* Vendor control commands */
 #define TIMEXDR_CTRL_SIZE      0xa
 

@@ -36,6 +36,7 @@ int verbose = 0;
 static char *progname;
 static char *empty=" ";
 
+static void print_session(const struct tdr_session *session);
 
 /*
  * Prints the program usage.
@@ -85,7 +86,7 @@ static int find_timexdr(struct usb_device *tdr) {
   return count;
 }
 
-#define DNAMELEN                20 
+#define DNAMELEN                50 
 
 /*
  * Opens and initializes the device.
@@ -131,7 +132,8 @@ static usb_dev_handle *timexdr_open(void) {
 
     if ( usb_get_driver_np(udev, TIMEXDR_INTERFACE, dname, DNAMELEN) == 0 ) {
       if ( usb_detach_kernel_driver_np(udev, TIMEXDR_INTERFACE) < 0 ) {
-	fatal(sprintf("Couldn't detach kernel driver %s", dname));
+	fprintf(stderr, "Couldn't detach kernel driver %s (%m).\n", dname);
+	exit(EXIT_FAILURE);
       } 
     }
 
@@ -356,33 +358,224 @@ static struct tdr_session *split_data(unsigned char *databuf) {
   return (i == 0) ? NULL : first;
 }
 
+#define TIME_STR_LENGTH                    9      /* in bytes */
+static char time_str[TIME_STR_LENGTH];
+
+/*
+ * Converts seconds into a time string 
+ */
+static void time2str(char *str_time, const unsigned long int seconds) {
+  unsigned long int hr, min, sec; 
+
+  hr  = seconds / 3600;
+  min = (seconds - hr*3600) / 60;
+  sec = seconds % 60;
+  sprintf(str_time, "%02u:%02u:%02u", hr, min, sec);
+
+}
+
+
+/* 
+ * Prints session header
+ */
+static void session_header(char *sname, const struct tdr_header *hdr, 
+			   const struct tdr_header *ftr) {
+  
+  printf("%s: %04u-%02u-%02u %02u:%02u:%02u - %04u-%02u-%02u %02u:%02u:%02u\n",
+	 sname, 
+	 hdr->year, hdr->month, hdr->day, hdr->hour, hdr->min, hdr->sec,
+	 ftr->year, ftr->month, ftr->day, ftr->hour, ftr->min, ftr->sec);
+
+}
+
+/*
+ * Prints information about a packet error
+ */
+static void packet_error(double time, unsigned char token) {
+  
+  time2str(time_str, time + 0.5);
+
+  switch (token) {
+  case MISSING_PACKET:
+    printf("%s\tMissing packet.\n", time_str);
+    break;
+  case CORRUPTED_PACKET:
+    printf("%s\tCorrupted packet.\n", time_str);
+    break;
+  default:
+    fatal("Unknown packet error");
+    break;
+  }
+
+}
+
 /*
  * Prints HRM session data to stdout.
  */
 static void hr_session(const struct tdr_session *ses) {
-  unsigned long int i, sec, min, hr;
+  unsigned long int i;
 
-  printf("HRM session: %04u-%02u-%02u %02u:%02u:%02u - %04u-%02u-%02u %02u:%02u:%02u\n",
-	 ses->header.year, ses->header.month, ses->header.day,
-	 ses->header.hour, ses->header.min, ses->header.sec,
-	 ses->footer.year, ses->footer.month, ses->footer.day,
-	 ses->footer.hour, ses->footer.min, ses->footer.sec);
+  session_header("HRM session", &(ses->header), &(ses->footer));
+  printf("  Split        bpm\n");
 
   for (i=0; i < ses->nbytes; i++) {
-    sec = i * TIME_STEP_HRM;
-    hr  = sec / 3600;
-    min = (sec - hr*3600) / 60;
-    sec = sec % 60;
-    printf("%02u:%02u:%02u\t%u\n", hr, min, sec, ses->data[i]);
+    switch (ses->data[i]) {
+    case MISSING_PACKET:
+    case CORRUPTED_PACKET:
+      packet_error(i * TIME_STEP_HRM, ses->data[i]);
+      break;
+    default:
+      time2str(time_str, i * TIME_STEP_HRM);
+      printf("%s\t%3u\n", time_str, ses->data[i]);
+      break;
+    }
   }
 
 }
+
+static void gps_packet_1(double *time, unsigned char status_byte, 
+			 unsigned char hsb, unsigned char lsb_speed, 
+			 unsigned char lsb_odo) {
+  
+  unsigned char status, acq, battery;
+  double speed, dist; 
+
+  status = ( status_byte & 0xf0 ) >> 4;
+  acq = ( status_byte & 0x0c) >> 2;
+  battery = ( status_byte & 0x03 );
+  speed = (double)((long int) lsb_speed + 
+		   ( ((long int) (hsb & 0xf0)) << 4 )) * SPEED_UNIT;
+  dist = (double)((long int) lsb_odo +
+		  ( ((long int) (hsb & 0x0f)) << 8 )) * DIST_UNIT;
+
+  time2str(time_str, *time + 0.5);
+  printf("%s\t0x%x\t0x%x\t0x%x\t%5.1f\t%9.3f\n", 
+	 time_str, status, acq, battery, speed, dist);
+
+  *time += TIME_STEP_GPS;
+}
+
+/*
+ * Prints GPS session data to stdout. 
+ */
+static void gps_session(const struct tdr_session *ses) { 
+  unsigned long int i, psize, bytes = ses->nbytes;
+  double time = 0.0;
+  
+  if ( ses->nbytes < GPS_PACKET_MIN_LENGTH ) {
+    fprintf(stderr, "Skipping GPS session: Packet too short.");
+    return;
+  }
+
+  session_header("GPS session", &(ses->header), &(ses->footer));
+ 
+  for (i=0; (i < bytes) && 
+	 (psize = (ses->data[i] & PACKET_LENGTH_MASK)) <= (bytes - i); 
+       i += psize) {
+    
+/*     printf(" ses->data[%d] = %02x\n", i, ses->data[i]); */
+
+    switch (ses->data[i]) {
+    case PACKET_TYPE_ERROR:
+      packet_error(time, ses->data[i+1]);
+      time += TIME_STEP_GPS;
+      break;
+    case PACKET_TYPE_1:
+      gps_packet_1(&time, ses->data[i+1], ses->data[i+2], 
+		   ses->data[i+3], ses->data[i+4]);
+      break;
+    case PACKET_TYPE_4:
+ /*      gps_packet_4(&time, data[i+1], data[i+2], data[i+3], data[i+4]); */
+      time += TIME_STEP_GPS; /* ***REMOVE*** (should be in gps_packet_4) */
+      break; 
+    case PACKET_TYPE_2:
+    case PACKET_TYPE_3:
+    case PACKET_TYPE_5:
+    case PACKET_TYPE_15:
+    default:
+/*       printf("This GPS packet handling not implemented yet: %02x\t%d:\%d\n",  */
+/* 	     ses->data[i], i, bytes - i); */
+/*       printf("\t%02x %02x %02x %02x %02x\n", ses->data[i],  */
+/* 	     ses->data[i+1], ses->data[i+2],  */
+/* 	     ses->data[i+3], ses->data[i+4]); */
+      fatal("This GPS packet handling not implemented yet");
+      break;
+    }
+  }
+  
+}
+
+/*
+ * Process and print a multi-device session. First split the multi-device
+ * session into HRM and GPS sessins.
+ */
+static void multi_session(const struct tdr_session *session) {
+  struct tdr_session *hrm_ses, *gps_ses;
+  unsigned long int i=0, j, plen;
+
+  hrm_ses = malloc(sizeof(*hrm_ses));
+  gps_ses = malloc(sizeof(*gps_ses));
+
+  hrm_ses->prev = (hrm_ses->next = NULL);
+  gps_ses->prev = (gps_ses->next = NULL);
+
+  hrm_ses->header = (gps_ses->header = session->header);
+  hrm_ses->footer = (gps_ses->footer = session->footer);
+  hrm_ses->header.dev = (hrm_ses->footer.dev = HRM_SESSION);
+  gps_ses->header.dev = (gps_ses->footer.dev = GPS_SESSION);
+  
+  hrm_ses->nbytes = (gps_ses->nbytes = 0);
+  
+  hrm_ses->data = malloc(session->nbytes);
+  gps_ses->data = malloc(session->nbytes);
+  
+  
+  while (1) {
+    switch (session->data[i]) {
+
+    case HRM_SESSION:
+      hrm_ses->data[hrm_ses->nbytes++] = session->data[i+1];
+      i += 2;
+      break;
+
+      /* GPS session seems to be identified differently in multi-dev mode */
+    case GPS_SESSION+1:
+      if (session->data[i+1] == PACKET_TYPE_15) {
+	plen = PACKET_TYPE_15_LENGTH;
+      } else {
+	plen = session->data[i+1] & PACKET_LENGTH_MASK;
+      }
+      for (j=0; j<plen; j++) {
+	gps_ses->data[gps_ses->nbytes + j] = session->data[i+1+j];
+      }
+      gps_ses->nbytes += plen;
+      i += plen + 1;
+      break;
+
+    default:
+      fatal("Unknown device in multi-device session");
+      break;
+    }
+    
+    if (i >= session->nbytes ) break;
+  }
+
+  print_session(hrm_ses);
+  print_session(gps_ses);
+
+  free(hrm_ses->data);
+  free(hrm_ses);
+  free(gps_ses->data);
+  free(gps_ses);
+}
+
 
 /*
  * Prints session data.
  */
 static void print_session(const struct tdr_session *session) {
   struct tdr_session *ses;
+  int i;
 
   for (ses = session; ses;  ses = ses->next) {
 
@@ -391,10 +584,16 @@ static void print_session(const struct tdr_session *session) {
       hr_session(ses);
       break;
     case GPS_SESSION:
-      printf("GPS session skipped.\n");
+      gps_session(ses);
+/*       for (i=0; i<ses->nbytes; i++) { */
+/* 	if ((i % 16) == 0 ) printf("\n"); */
+/* 	printf(" %02x", ses->data[i]); */
+/*       } */
+	
       break;
     case MULTI_DEVICE_SESSION:
-      printf("Multi-device (HRM+GPS) session skipped.\n");
+      multi_session(ses);
+/*       printf("Multi-device (HRM+GPS) session skipped.\n"); */
       break;
     default:
       errno = 0;
