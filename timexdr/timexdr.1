@@ -1,17 +1,14 @@
-.TH TIMEXDR 1 "28 March 2005"
+.TH TIMEXDR 1 "31 March 2005"
 .SH NAME
 TIMEXDR \- Timex Data Recorder control program
 .SH SYNOPSIS
-.B timexdr [-a|-e|-h]
+.B timexdr [-a|-e|-h|-t]
 .SH DESCRIPTION
 .PP
 .B timexdr
 is utility that can download data from the Timex Data Recorder device.
 This device records heart rate monitor (HRM) and/or position data (GPS)
 transmitted from Timex Bodylink HRM and GPS sensors.
-.P
-Currently, it can only be used to dump the EEPROM memory content or to 
-download all HRM session data. The GPS or HRM+GPS session are ignored.
 .P
 Data are printed to the standard output (STDOUT). 
 .SH OPTIONS
@@ -22,8 +19,11 @@ Get data from all sessions.
 .B \-e, --eeprom-dump
 Dump the EEPROM memory content.
 .TP
-.B \-h
+.B \-h, --help
 Display usage information.
+.TP
+.B \-t, --time-sync
+Synchronize device's clock with system local time.
 .
 .SH FILES
 .TP 
@@ -45,6 +45,14 @@ usbfs /proc/bus/usb usbfs defaults 0 0
 to /etc/fstab. The usbfs support has to be compiled in the kernel.
 .P
 You must be able to write to the file /proc/bus/usb/BBB/DDD 
-to use this program or set the setuid-bit of the program. 
+to use this program or set the setuid-bit of the program.
+.SH NOTES
+The Timex GPS is apparently capable of reporting also geographical
+position, heading and altitude and Timex Data Recorder can receive all
+this information. However, it is unknown to me how to tell the GPS
+what kind of data to send, i.e. which data profile to transmit. If you
+know how a solution or hint please send it to the author.
+.SH BUGS
+If you find any, please report them to the author. 
 .SH AUTHOR
 timexdr was written by Jan Merka <merka@highsphere.net>. 

@@ -1,2 +1,12 @@
-timexdr 0.1
-	First release.
+timexdr 
+
+Version 0.2
+-----------
+	- GPS sessions and multi-device sessions are now printed too.
+	- Time synchronization added.
+
+Version 0.1
+-----------
+	- First release.
+	- HRM sessions printed.
+	- EEPROM dumps.

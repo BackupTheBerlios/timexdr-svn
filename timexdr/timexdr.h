@@ -101,6 +101,8 @@
 #define TIME_STEP_HRM                2     /* in seconds */
 #define TIME_STEP_GPS                3.57  /* in seconds */
 
+#define TIME_CHECKSUM             0xb9     /* for time synchronization */
+
 #define TDR_ADDRESS(b0, b1, b2) \
   ((b0) | ((b1) << 8) | ((b2) << 16)) 
 
@@ -109,10 +111,10 @@
 
 
 /* Multi-device session ID (both HRM and GPS data */
-#define SESSION_MASK                0xff
+#define SESSION_MASK                0xf0
 #define MULTI_DEVICE_SESSION        0xff 
 #define HRM_SESSION                 0x00
-#define GPS_SESSION                 0x2a
+#define GPS_SESSION                 0x20   /* ID varies 0x20-0x2f */
 
 #define TIMEXDR_CTRL_TIMEOUT   200         /* in miliseconds */
 
@@ -131,7 +133,7 @@
 #define PACKET_TYPE_5               0x59   /* status, speed, distance, */ 
 					   /* altitude and heading */
 #define PACKET_TYPE_15              0xf0   /* everything */
-#define PACKET_TYPE_15_LENGTH         11   /* in bytes */
+#define PACKET_TYPE_15_LENGTH         17   /* in bytes */
 
 #define PACKET_LENGTH_MASK          0x0f
 #define GPS_PACKET_MIN_LENGTH          2   /* in bytes */
@@ -147,7 +149,11 @@
 
 /* Data units */
 #define SPEED_UNIT                  0.1    /* mph */
-#define DIST_UNIT                    0.001  /* mile */
+#define DIST_UNIT                   0.001  /* mile */
+
+/* Odometer quirks */
+#define ODO_MAX                     4096   /* miles */
+
 
 /* Vendor control commands */
 #define TIMEXDR_CTRL_SIZE      0xa
@@ -165,6 +171,12 @@ char vendor_ctrl_4[] = {0x01, 0xc3, 0xe1, 0x1f, 0x11, 0x11,
  */
 char vendor_ctrl_read_memory[] = { 0x1, 0xc2, 0x21, 0xdf, 0x0, 
 				   0x7c, 0x39, 0, 0x9, 0};
+/* I am not sure what this does but at least it cause the LED show
+ * reassuring green light :) Without this command, LED blinks red after
+ * unplugging the device.
+ */
+char vendor_ctrl_after_memread[] = {0x1, 0x40, 0x51, 0xaf, 0, 1, 0, 0, 0, 0};
+
 /* Set the device clock to the time specified in bytes 4-9, the purpose
  * of the 10th byte is unknown.
  */
@@ -172,7 +184,7 @@ char vendor_ctrl_set_time[] = { 0x1, 0x40, 0x47, 0, 0, 0, 0, 0, 0, 0 };
 
 
 /* Data types */
-struct tdr_session;
+struct tdr_session; 
 
 struct tdr_header {
   char dev;                                          /* Device identifier */

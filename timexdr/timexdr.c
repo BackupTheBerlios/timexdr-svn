@@ -24,14 +24,24 @@
 #include <stdio.h>
 #include <errno.h>
 #include <getopt.h>
+#include <time.h>
 
 #include <usb.h>
 #include "timexdr.h"
 
 
-static const char *version = "version 0.1, Mar 28, 2005";
+static const char *version = "version 0.2, Mar 31, 2005";
 
 int verbose = 0;
+
+/* Odometer quirks: 
+ *   dist_offset - to eliminate non-zero session offset
+ *   dist_prev   - remember the previous value in order to control
+ *                 rollovers at ODO_MAX (4096 miles) and to disallow
+ *                 any decrease in distance
+ *   dist_base   - increment this on each rollover by ODO_MAX
+ */
+static double dist_offset = -1, dist_prev = -1, dist_base = 0;
 
 static char *progname;
 static char *empty=" ";
@@ -51,7 +61,8 @@ static void timexdr_usage(const char *program, const char *ver) {
 	  "\nCommands:\n"
 	  "\t-a, --all-sessions\tPrint all sessions.\n"
 	  "\t-e, --eeprom-dump\tDump the content of EEPROM (for debugging).\n"
-	  "\t-h, --help\t\tDisplay this usage information.\n",
+	  "\t-h, --help\t\tDisplay this usage information.\n"
+	  "\t-t, --time-sync\t\tSynchronize device's clock with system local time.\n",
 	  ver, program);
 
   exit(EXIT_FAILURE);
@@ -214,6 +225,31 @@ static int timex_ctrl(usb_dev_handle *dev, char *ctrldata,
 
   return (ret < 0) ? ret : 
     timex_int_read(dev, buf, bufsize, TIMEXDR_CTRL_TIMEOUT);
+}
+
+/*
+ * Synchronize device's clock with PC (use localtime)
+ */
+static int timex_sync_time(usb_dev_handle *dev, char *buf, int bufsize) {
+  struct tm *sys_time;
+  time_t tp;
+
+  tp = time(NULL);
+  sys_time = localtime(&tp);
+
+  vendor_ctrl_set_time[3] = (char) sys_time->tm_sec;
+  vendor_ctrl_set_time[4] = (char) sys_time->tm_min;
+  vendor_ctrl_set_time[5] = (char) sys_time->tm_hour;
+  vendor_ctrl_set_time[6] = (char) (sys_time->tm_mday - 1);
+  vendor_ctrl_set_time[7] = (char) sys_time->tm_mon;
+  vendor_ctrl_set_time[8] = (char) (sys_time->tm_year - 100);
+  vendor_ctrl_set_time[9] = TIME_CHECKSUM - (
+    vendor_ctrl_set_time[3] + vendor_ctrl_set_time[4] +
+    vendor_ctrl_set_time[5] + vendor_ctrl_set_time[6] +
+    vendor_ctrl_set_time[7] + vendor_ctrl_set_time[8] );
+  printf("checksum: 0x%x\n", vendor_ctrl_set_time[9]);
+  
+  return timex_ctrl(dev, vendor_ctrl_set_time, buf, bufsize);
 }
 
 /*
@@ -416,7 +452,7 @@ static void hr_session(const struct tdr_session *ses) {
   unsigned long int i;
 
   session_header("HRM session", &(ses->header), &(ses->footer));
-  printf("  Split        bpm\n");
+  printf("  Time        HR[bpm]\n");
 
   for (i=0; i < ses->nbytes; i++) {
     switch (ses->data[i]) {
@@ -433,12 +469,48 @@ static void hr_session(const struct tdr_session *ses) {
 
 }
 
+/*
+ * Adjust the distance for odometer quirks
+ */
+static void dist_corrections(double *dist){
+  
+  /* First add any rollovers */
+  *dist += dist_base;
+
+  if (dist_offset < 0) {
+    dist_offset = *dist;
+  }
+
+  /* Remove session offset */
+  *dist -= dist_offset;
+
+  /* Check for a rollover */
+  if ((dist_prev - *dist) > (ODO_MAX * 0.5)) {
+    *dist += ODO_MAX;
+    dist_base += ODO_MAX;
+  }
+  
+  /* Don't allow decreases in distance */
+  if (*dist < dist_prev) {
+    *dist = dist_prev;
+  } else {
+    dist_prev = *dist;
+  }
+}
+
+/*
+ * Decodes and prints GPS packet type 1 (Status, Speed and Distance)
+ */
 static void gps_packet_1(double *time, unsigned char status_byte, 
 			 unsigned char hsb, unsigned char lsb_speed, 
 			 unsigned char lsb_odo) {
   
   unsigned char status, acq, battery;
   double speed, dist; 
+
+  if (dist_offset < 0) {
+    printf("  Time\t\tStatus\tACQ\tBAT\tV [mph]\tD [miles]\n");
+  }
 
   status = ( status_byte & 0xf0 ) >> 4;
   acq = ( status_byte & 0x0c) >> 2;
@@ -447,10 +519,38 @@ static void gps_packet_1(double *time, unsigned char status_byte,
 		   ( ((long int) (hsb & 0xf0)) << 4 )) * SPEED_UNIT;
   dist = (double)((long int) lsb_odo +
 		  ( ((long int) (hsb & 0x0f)) << 8 )) * DIST_UNIT;
+  dist_corrections(&dist);
 
   time2str(time_str, *time + 0.5);
   printf("%s\t0x%x\t0x%x\t0x%x\t%5.1f\t%9.3f\n", 
 	 time_str, status, acq, battery, speed, dist);
+
+  *time += TIME_STEP_GPS;
+}
+
+/*
+ * Decodes and prints GPS packet type 4 (Time and Date)
+ */
+static void gps_packet_4(double *time, unsigned char mo_yr, 
+			 unsigned char mi_da, unsigned char da_hr, 
+			 unsigned char bsec) {
+  int year, month, day, hour, min;
+  float sec;
+
+  /* Note: Year in GPS time packets is 2001 based in contrary to the
+   * 2000 year base in headers/footers of sessions. The time is GMT.
+   */
+
+  year  = (int)(mo_yr & 0x0f) + 2001;
+  month = (int)(mo_yr & 0xf0) >> 4;
+  day   = ((int)(mi_da & 0x03) << 3) + ((int)(da_hr & 0xe0) >> 5);
+  hour  = (int)(da_hr & 0x1f);
+  min   = (int)(mi_da & 0xfc) >> 2;
+  sec   = (float)((int)(bsec & 0xfc) >> 2) + (float)((int)(bsec & 0x03))*0.25;
+  
+  time2str(time_str, *time + 0.5);
+  printf("%s\t%i-%02i-%02i %2i:%02i:%05.2f GMT\n", time_str, 
+	 year, month, day, hour, min, sec);
 
   *time += TIME_STEP_GPS;
 }
@@ -467,14 +567,16 @@ static void gps_session(const struct tdr_session *ses) {
     return;
   }
 
+  dist_offset = -1;
+  dist_prev = -1;
+  dist_base = 0;
+
   session_header("GPS session", &(ses->header), &(ses->footer));
  
   for (i=0; (i < bytes) && 
 	 (psize = (ses->data[i] & PACKET_LENGTH_MASK)) <= (bytes - i); 
        i += psize) {
     
-/*     printf(" ses->data[%d] = %02x\n", i, ses->data[i]); */
-
     switch (ses->data[i]) {
     case PACKET_TYPE_ERROR:
       packet_error(time, ses->data[i+1]);
@@ -485,19 +587,14 @@ static void gps_session(const struct tdr_session *ses) {
 		   ses->data[i+3], ses->data[i+4]);
       break;
     case PACKET_TYPE_4:
- /*      gps_packet_4(&time, data[i+1], data[i+2], data[i+3], data[i+4]); */
-      time += TIME_STEP_GPS; /* ***REMOVE*** (should be in gps_packet_4) */
-      break; 
+      gps_packet_4(&time, ses->data[i+1], ses->data[i+2], 
+		   ses->data[i+3], ses->data[i+4]);
+      break;  
     case PACKET_TYPE_2:
     case PACKET_TYPE_3:
     case PACKET_TYPE_5:
     case PACKET_TYPE_15:
     default:
-/*       printf("This GPS packet handling not implemented yet: %02x\t%d:\%d\n",  */
-/* 	     ses->data[i], i, bytes - i); */
-/*       printf("\t%02x %02x %02x %02x %02x\n", ses->data[i],  */
-/* 	     ses->data[i+1], ses->data[i+2],  */
-/* 	     ses->data[i+3], ses->data[i+4]); */
       fatal("This GPS packet handling not implemented yet");
       break;
     }
@@ -531,15 +628,14 @@ static void multi_session(const struct tdr_session *session) {
   
   
   while (1) {
-    switch (session->data[i]) {
+    switch (session->data[i] & SESSION_MASK) {
 
     case HRM_SESSION:
       hrm_ses->data[hrm_ses->nbytes++] = session->data[i+1];
       i += 2;
       break;
 
-      /* GPS session seems to be identified differently in multi-dev mode */
-    case GPS_SESSION+1:
+    case GPS_SESSION:
       if (session->data[i+1] == PACKET_TYPE_15) {
 	plen = PACKET_TYPE_15_LENGTH;
       } else {
@@ -579,21 +675,15 @@ static void print_session(const struct tdr_session *session) {
 
   for (ses = session; ses;  ses = ses->next) {
 
-    switch (ses->header.dev & SESSION_MASK) {
+   switch (ses->header.dev & SESSION_MASK) {
     case HRM_SESSION:
       hr_session(ses);
       break;
     case GPS_SESSION:
       gps_session(ses);
-/*       for (i=0; i<ses->nbytes; i++) { */
-/* 	if ((i % 16) == 0 ) printf("\n"); */
-/* 	printf(" %02x", ses->data[i]); */
-/*       } */
-	
       break;
-    case MULTI_DEVICE_SESSION:
+    case MULTI_DEVICE_SESSION & SESSION_MASK:
       multi_session(ses);
-/*       printf("Multi-device (HRM+GPS) session skipped.\n"); */
       break;
     default:
       errno = 0;
@@ -620,15 +710,16 @@ int main(int argc, char *argv[])
     {"all-sessions", 0, NULL, 'a'},
     {"eeprom-dump", 0, NULL, 'e'},
     {"help",  0, NULL, 'h'},
+    {"time-sync", 0, NULL, 't'},
     {NULL, 0, NULL, 0}
   };
   
   progname = argv[0];
-  if (argc > 1 && !strcmp(argv[1], "-v"))
-    verbose = 1;
+/*   if (argc > 1 && !strcmp(argv[1], "-v")) */
+/*      verbose = 1;  */
 
   while (1) {
-    c = getopt_long(argc, argv, "aeh",
+    c = getopt_long(argc, argv, "aeht",
 		    long_options, NULL);
 
     if (c == -1) {
@@ -639,6 +730,7 @@ int main(int argc, char *argv[])
     case 'a':
     case 'e':
     case 'h':
+    case 't':
       choice = c;
       break;
     default:
@@ -679,6 +771,7 @@ int main(int argc, char *argv[])
 #endif
 
     i = timex_int_read(dev, databuf, bufsize, timeout);
+    i = timex_ctrl(dev, vendor_ctrl_after_memread, buf, RESPONSE_BUFSIZE);
     
     switch (choice) {
     case 'e': 
@@ -696,6 +789,14 @@ int main(int argc, char *argv[])
     timexdr_close(dev);
     break;
 
+  case 't':
+    dev = timexdr_open();
+    if (timex_sync_time(dev, buf, RESPONSE_BUFSIZE) < 0) {
+      fatal("Time synchronization failed");
+    }
+    timexdr_close(dev);
+    break;
+    
   default:
     timexdr_usage(argv[0], version);
     break;
