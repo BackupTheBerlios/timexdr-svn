@@ -30,7 +30,7 @@
 #include "timexdr.h"
 
 
-static const char *version = "version 0.2, Mar 31, 2005";
+static const char *version = "version 1.0-pre1, April 2, 2005";
 
 int verbose = 0;
 
@@ -60,7 +60,7 @@ static void timexdr_usage(const char *program, const char *ver) {
 	  "Usage: %s [COMMAND] [OPTION]...\n"
 	  "\nCommands:\n"
 	  "  -a, --all-sessions\tPrint all sessions.\n"
-	  "  -c, --clear-eeprom\tClear the EEPROM memory (delete all stored session).\n"
+	  "  -c, --clear-eeprom\tClear the EEPROM memory (delete all stored sessions).\n"
 	  "  -e, --eeprom-dump\tDump the content of EEPROM (for debugging).\n"
 	  "  -h, --help\t\tDisplay this usage information.\n"
 	  "  -t, --time-sync\tSynchronize device's clock with system local time.\n",
