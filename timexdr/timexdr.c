@@ -59,10 +59,11 @@ static void timexdr_usage(const char *program, const char *ver) {
 	  "Timex Data Recorder control program %s\n\n"
 	  "Usage: %s [COMMAND] [OPTION]...\n"
 	  "\nCommands:\n"
-	  "\t-a, --all-sessions\tPrint all sessions.\n"
-	  "\t-e, --eeprom-dump\tDump the content of EEPROM (for debugging).\n"
-	  "\t-h, --help\t\tDisplay this usage information.\n"
-	  "\t-t, --time-sync\t\tSynchronize device's clock with system local time.\n",
+	  "  -a, --all-sessions\tPrint all sessions.\n"
+	  "  -c, --clear-eeprom\tClear the EEPROM memory (delete all stored session).\n"
+	  "  -e, --eeprom-dump\tDump the content of EEPROM (for debugging).\n"
+	  "  -h, --help\t\tDisplay this usage information.\n"
+	  "  -t, --time-sync\tSynchronize device's clock with system local time.\n",
 	  ver, program);
 
   exit(EXIT_FAILURE);
@@ -179,9 +180,10 @@ static void timexdr_close(usb_dev_handle *dev) {
  */
 static int timex_int_read(usb_dev_handle *dev, char *buf, int size, 
 			  int timeout) {
-  int ret,i;
+  int ret;
 
   errno = 0;
+
   ret = usb_interrupt_read(dev, TIMEXDR_EP, buf, size, timeout);
   if (ret < 0) {
     /* The return code is often negative when reading the main data from the
@@ -193,11 +195,15 @@ static int timex_int_read(usb_dev_handle *dev, char *buf, int size,
   } 
 
 #ifdef TDR_DEBUG
-  for (i=0; (ret<10) && (i<ret); i++) {
-    printf("%02x ", buf[i] & 0xff);
+  printf("timex_int_read: %d bytes transferred\n\t", ret);
+  {
+    int i;
+
+    for (i=0; (ret<10) && (i<ret); i++) {
+      printf("%02x ", buf[i] & 0xff);
+    }
+    printf("\n");
   }
-  printf("\n");
-  printf("interrupt read: %d bytes transferred\n", ret);
 #endif
 
   return ret;
@@ -221,6 +227,16 @@ static int timex_ctrl(usb_dev_handle *dev, char *ctrldata,
 #ifdef TDR_DEBUG
   printf("---\ntimex_ctrl: %d bytes transferred (%s)\n\t", ret,  
 	 (ret < 0) ? usb_strerror() : empty);
+  if (ret > 0) {
+    {
+      int i;
+
+      for (i=0; i<ret; i++) {
+	printf("%02x ", ctrldata[i] & 0xff);
+      }
+      printf("\n");
+    }
+  }
 #endif
 
   return (ret < 0) ? ret : 
@@ -676,7 +692,6 @@ static void multi_session(const struct tdr_session *session) {
  */
 static void print_session(const struct tdr_session *session) {
   struct tdr_session *ses;
-  int i;
 
   for (ses = session; ses;  ses = ses->next) {
 
@@ -706,13 +721,14 @@ static void print_session(const struct tdr_session *session) {
 int main(int argc, char *argv[])
 {
   struct usb_dev_handle *dev;
-  int i,j,k;
+  int i;
   unsigned long int bytes, bufsize, timeout;
   unsigned char buf[RESPONSE_BUFSIZE], *databuf;
   char c, choice='h';
   struct tdr_session  *session;
   static struct option long_options[] = {
     {"all-sessions", 0, NULL, 'a'},
+    {"clear-eeprom", 0, NULL, 'c'},
     {"eeprom-dump", 0, NULL, 'e'},
     {"help",  0, NULL, 'h'},
     {"time-sync", 0, NULL, 't'},
@@ -724,7 +740,7 @@ int main(int argc, char *argv[])
 /*      verbose = 1;  */
 
   while (1) {
-    c = getopt_long(argc, argv, "aeht",
+    c = getopt_long(argc, argv, "aceht",
 		    long_options, NULL);
 
     if (c == -1) {
@@ -733,6 +749,7 @@ int main(int argc, char *argv[])
     
     switch (c) {
     case 'a':
+    case 'c':
     case 'e':
     case 'h':
     case 't':
@@ -745,6 +762,12 @@ int main(int argc, char *argv[])
   }
 
   switch (choice) {
+
+  case 'c':
+    dev = timexdr_open();
+    i = timex_ctrl(dev, vendor_ctrl_clear_eeprom, buf, RESPONSE_BUFSIZE);
+    timexdr_close(dev);
+    break;
 
   case 'a':
   case 'e':
@@ -761,6 +784,13 @@ int main(int argc, char *argv[])
 
     i = timex_ctrl(dev, vendor_ctrl_4, buf, RESPONSE_BUFSIZE);
     i = timex_ctrl(dev, vendor_ctrl_read_memory, buf, RESPONSE_BUFSIZE);
+
+    if ((bytes == (TIMEXDR_ATABLESIZE + 
+		   num_of_pages(bytes, EEPROM_PAGESIZE))) && 
+	timex_ctrl(dev, vendor_ctrl_no_session, buf, RESPONSE_BUFSIZE)) {
+      fprintf(stderr, "EEPROM empty.\n");
+      exit(EXIT_FAILURE);
+    }
 
     bufsize = EEPROM_PAGESIZE * num_of_pages(bytes, EEPROM_PAGESIZE); 
     databuf = (char *)calloc(bufsize, sizeof(char));
