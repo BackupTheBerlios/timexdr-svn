@@ -116,7 +116,7 @@
 #define HRM_SESSION                 0x00
 #define GPS_SESSION                 0x20   /* ID varies 0x20-0x2f */
 
-#define TIMEXDR_CTRL_TIMEOUT   200         /* in miliseconds */
+#define TIMEXDR_CTRL_TIMEOUT         600   /* in miliseconds */
 
 
 /* Packet error codes */
@@ -182,6 +182,13 @@ char vendor_ctrl_after_memread[] = {0x1, 0x40, 0x51, 0xaf, 0, 1, 0, 0, 0, 0};
  */
 char vendor_ctrl_set_time[] = { 0x1, 0x40, 0x47, 0, 0, 0, 0, 0, 0, 0 };
 
+/* Clear EEPROM */
+char vendor_ctrl_clear_eeprom[] = { 0x1, 0x40, 0x11, 0xef, 0x11, 0x11, 
+				    0x0, 0x0, 0x30, 0x1c};
+
+/* Control command send when no session are stored in EEPROM */
+char vendor_ctrl_no_session[] = { 0x1, 0x40, 0x31, 0xcf, 0x0,
+				  0x7c, 0x39, 0, 0x9, 0};
 
 /* Data types */
 struct tdr_session; 
