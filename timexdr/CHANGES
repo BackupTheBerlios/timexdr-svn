@@ -1,5 +1,14 @@
 timexdr 
 
+Version 1.0-pre1
+----------------
+	- I have decided to make this the first preliminary release of 
+	  a stable version. The utility seems to be stable already and
+	  with all core functionality implemented. However, I will give
+	  it a few days/weeks of testing before releasing it as stable.	
+
+	- Clear EEPROM functionality added.
+
 Version 0.2
 -----------
 	- GPS sessions and multi-device sessions are now printed too.
