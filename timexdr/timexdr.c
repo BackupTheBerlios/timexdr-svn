@@ -263,8 +263,8 @@ static unsigned long int num_of_pages(const unsigned long int bytes,
 
 /* Find how many bytes are used in the TDR's EEPROM for data. Note that
  * the address of last byte as returned by the control command is NOT the
- * total number of bytes used because there is an extra byte 0x02 for 
- * each 255 bytes of data.
+ * total number of bytes used because there is an extra byte 0x02 at the 
+ * beginning of each 255 bytes of data.
  */
 static long int eeprom_usage(usb_dev_handle *dev) {
   unsigned char buf[RESPONSE_BUFSIZE];
@@ -484,13 +484,18 @@ static void dist_corrections(double *dist){
   /* Remove session offset */
   *dist -= dist_offset;
 
-  /* Check for a rollover */
+  /* Check for a rollover: We assume that the distance can fall back
+   * by more than 0.5 * ODO_MAX only when a rollover occured.
+   */
   if ((dist_prev - *dist) > (ODO_MAX * 0.5)) {
     *dist += ODO_MAX;
     dist_base += ODO_MAX;
   }
   
-  /* Don't allow decreases in distance */
+  /* Don't allow a decrease in distance. Such decrease can happen when
+   * the GPS suddenly stops because it normally anticipates where its 
+   * location will be at the time of packet transmission. After a sudden
+   * stop, it may need to correct, i.e. decrease, the distance. */
   if (*dist < dist_prev) {
     *dist = dist_prev;
   } else {
@@ -761,7 +766,7 @@ int main(int argc, char *argv[])
     databuf = (char *)calloc(bufsize, sizeof(char));
     if (databuf == 0) fatal("databuf not initialized");
    
-    /* The timeout may be too large but that is better than smaller
+    /* The timeout may be unnecessary long but that is better than too short
      * because this way we are sure that all data get tranferred.
      */
     timeout = (bytes / 2048 + 1) * 20 * TIMEXDR_CTRL_TIMEOUT;

@@ -171,9 +171,9 @@ char vendor_ctrl_4[] = {0x01, 0xc3, 0xe1, 0x1f, 0x11, 0x11,
  */
 char vendor_ctrl_read_memory[] = { 0x1, 0xc2, 0x21, 0xdf, 0x0, 
 				   0x7c, 0x39, 0, 0x9, 0};
-/* I am not sure what this does but at least it cause the LED show
- * reassuring green light :) Without this command, LED blinks red after
- * unplugging the device.
+/* I am not sure what this does but at least it causes the LED show a
+ * re-assuring green light :) Without this command, LED blinks red after
+ * unplugging the device from the USB port.
  */
 char vendor_ctrl_after_memread[] = {0x1, 0x40, 0x51, 0xaf, 0, 1, 0, 0, 0, 0};
 
