@@ -1,5 +1,4 @@
 Major stuff:
-	- Add option to clear EEPROM.
 	- Find out how to chose data profiles on the GPS unit in order
 	to receive not only speed+distance but also geographical position,
 	heading and altitude. If you know a solution or a hint, please 
