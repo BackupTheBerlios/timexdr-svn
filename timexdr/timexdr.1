@@ -1,8 +1,8 @@
-.TH TIMEXDR 1 "31 March 2005"
+.TH TIMEXDR 1 "2 April 2005"
 .SH NAME
 TIMEXDR \- Timex Data Recorder control program
 .SH SYNOPSIS
-.B timexdr [-a|-e|-h|-t]
+.B timexdr [-a|-c|-e|-h|-t]
 .SH DESCRIPTION
 .PP
 .B timexdr
@@ -14,7 +14,10 @@ Data are printed to the standard output (STDOUT).
 .SH OPTIONS
 .TP
 .B \-a, --all-sessions
-Get data from all sessions. 
+Get data from all sessions.
+.TP
+.B \-c, --clear-eeprom
+Clear the EEPROM memory (delete all recorded sessions). 
 .TP
 .B \-e, --eeprom-dump
 Dump the EEPROM memory content.
