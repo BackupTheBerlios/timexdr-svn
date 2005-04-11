@@ -1,8 +1,8 @@
-.TH TIMEXDR 1 "2 April 2005"
+.TH TIMEXDR 1 "11 April 2005"
 .SH NAME
 TIMEXDR \- Timex Data Recorder control program
 .SH SYNOPSIS
-.B timexdr [-a|-c|-e|-h|-t]
+.B timexdr [options]
 .SH DESCRIPTION
 .PP
 .B timexdr
@@ -14,20 +14,51 @@ Data are printed to the standard output (STDOUT).
 .SH OPTIONS
 .TP
 .B \-a, --all-sessions
-Get data from all sessions.
+Get data from all sessions. If both -a and -e options are used, the
+last one will be the one that's used.
 .TP
 .B \-c, --clear-eeprom
-Clear the EEPROM memory (delete all recorded sessions). 
+Clear the EEPROM memory (delete all recorded sessions). Memory is cleared
+after data are displayed if requested by the -a or -e options. 
 .TP
 .B \-e, --eeprom-dump
-Dump the EEPROM memory content.
+Dump the EEPROM memory content. If both -a and -e options are used, the
+last one will be the one that's used. 
 .TP
 .B \-h, --help
 Display usage information.
 .TP
+.B \-m, --miles
+Display distance and speed in miles and mph, respectively. The default
+units are kilometers and kph.
+.TP
 .B \-t, --time-sync
 Synchronize device's clock with system local time.
-.
+.SH EXAMPLES
+.PP
+For all examples below, it will be assumed that the Timex Data Recorder
+device is connected to the USB bus of the machine.
+.PP
+To display all stored sessions:
+.PP
+    timexdr \-a
+.PP
+To store EEPROM memory content in a file eeprom.log:
+.PP
+    timexdr \-e > eeprom.log
+.PP
+To display EEPROM memory content and store it in a file eeprom.log:
+.PP
+    timexdr \-e | tee eeprom.log
+.PP
+To synchronize device's clock with system local time:
+.PP
+    timexdr \-t
+.PP
+To display all stored session data, synchronize the clock, and clear the 
+EEPROM memory afterwards:
+.PP
+    timexdr \-c \-a \-t
 .SH FILES
 .TP 
 .B /proc/bus/usb/BBB/DDD
@@ -50,7 +81,7 @@ to /etc/fstab. The usbfs support has to be compiled in the kernel.
 You must be able to write to the file /proc/bus/usb/BBB/DDD 
 to use this program or set the setuid-bit of the program.
 .SH NOTES
-The Timex GPS is apparently capable of reporting also geographical
+The Timex GPS unit is apparently capable of reporting also geographical
 position, heading and altitude and Timex Data Recorder can receive all
 this information. However, it is unknown to me how to tell the GPS
 what kind of data to send, i.e. which data profile to transmit. If you
