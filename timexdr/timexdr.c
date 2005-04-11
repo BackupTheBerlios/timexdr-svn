@@ -30,14 +30,14 @@
 #include "timexdr.h"
 
 
-static const char *version = "version 1.0-pre1, April 2, 2005";
+static const char *version = "version 1.0-pre2, April 10, 2005";
 
 int verbose = 0;
 
 /* Odometer quirks: 
  *   dist_offset - to eliminate non-zero session offset
  *   dist_prev   - remember the previous value in order to control
- *                 rollovers at ODO_MAX (4096 miles) and to disallow
+ *                 rollovers at ODO_MAX (4.096 miles) and to disallow
  *                 any decrease in distance
  *   dist_base   - increment this on each rollover by ODO_MAX
  */
@@ -63,6 +63,8 @@ static void timexdr_usage(const char *program, const char *ver) {
 	  "  -c, --clear-eeprom\tClear the EEPROM memory (delete all stored sessions).\n"
 	  "  -e, --eeprom-dump\tDump the content of EEPROM (for debugging).\n"
 	  "  -h, --help\t\tDisplay this usage information.\n"
+	  "  -m, --miles\t\tShow distance and speed in miles and mph, respectively.\n"
+	  "\t\t\tThe default units are kilometers and kph.\n"
 	  "  -t, --time-sync\tSynchronize device's clock with system local time.\n",
 	  ver, program);
 
@@ -263,7 +265,7 @@ static int timex_sync_time(usb_dev_handle *dev, char *buf, int bufsize) {
     vendor_ctrl_set_time[3] + vendor_ctrl_set_time[4] +
     vendor_ctrl_set_time[5] + vendor_ctrl_set_time[6] +
     vendor_ctrl_set_time[7] + vendor_ctrl_set_time[8] );
-  printf("checksum: 0x%x\n", vendor_ctrl_set_time[9]);
+  //printf("checksum: 0x%x\n", vendor_ctrl_set_time[9]);
   
   return timex_ctrl(dev, vendor_ctrl_set_time, buf, bufsize);
 }
@@ -486,6 +488,13 @@ static void hr_session(const struct tdr_session *ses) {
 }
 
 /*
+ * Convert distance units
+ */
+static double unit_conv(const double dist) {
+  return (dist_units == 0) ? dist : MILES_TO_KM(dist); 
+}
+
+/*
  * Adjust the distance for odometer quirks
  */
 static void dist_corrections(double *dist){
@@ -530,7 +539,15 @@ static void gps_packet_1(double *time, unsigned char status_byte,
   double speed, dist; 
 
   if (dist_offset < 0) {
-    printf("  Time\t\tStatus\tACQ\tBAT\tV [mph]\tD [miles]\n");
+    switch (dist_units) {
+    case 0:          /* Imperial units: miles */
+      printf("  Time\t\tStatus\tACQ\tBAT\tV [mph]\tD [miles]\n");
+      break;
+    case 1:          /* SI units: kilometers */
+    default:
+      printf("  Time\t\tStatus\tACQ\tBAT\tV [kph]\t   D [km]\n");
+      break;
+    }
   }
 
   status = ( status_byte & 0xf0 ) >> 4;
@@ -544,7 +561,7 @@ static void gps_packet_1(double *time, unsigned char status_byte,
 
   time2str(time_str, *time + 0.5);
   printf("%s\t0x%x\t0x%x\t0x%x\t%5.1f\t%9.3f\n", 
-	 time_str, status, acq, battery, speed, dist);
+	 time_str, status, acq, battery, unit_conv(speed), unit_conv(dist));
 
   *time += TIME_STEP_GPS;
 }
@@ -721,7 +738,7 @@ static void print_session(const struct tdr_session *session) {
 int main(int argc, char *argv[])
 {
   struct usb_dev_handle *dev;
-  int i;
+  int i, clear_eeprom=0;
   unsigned long int bytes, bufsize, timeout;
   unsigned char buf[RESPONSE_BUFSIZE], *databuf;
   char c, choice='h';
@@ -731,16 +748,15 @@ int main(int argc, char *argv[])
     {"clear-eeprom", 0, NULL, 'c'},
     {"eeprom-dump", 0, NULL, 'e'},
     {"help",  0, NULL, 'h'},
+    {"miles", 0, NULL, 'm'},
     {"time-sync", 0, NULL, 't'},
     {NULL, 0, NULL, 0}
   };
   
   progname = argv[0];
-/*   if (argc > 1 && !strcmp(argv[1], "-v")) */
-/*      verbose = 1;  */
 
   while (1) {
-    c = getopt_long(argc, argv, "aceht",
+    c = getopt_long(argc, argv, "acehmt",
 		    long_options, NULL);
 
     if (c == -1) {
@@ -749,12 +765,29 @@ int main(int argc, char *argv[])
     
     switch (c) {
     case 'a':
-    case 'c':
     case 'e':
-    case 'h':
-    case 't':
       choice = c;
       break;
+
+    case 'c':
+      clear_eeprom = 1;
+      if (choice == 'h') choice = '\0';
+      break;
+
+    case 'm':
+      dist_units = 0;
+      break;
+
+    case 't':
+      dev = timexdr_open();
+      if (timex_sync_time(dev, buf, RESPONSE_BUFSIZE) < 0) {
+	fatal("Time synchronization failed");
+      }
+      timexdr_close(dev);
+      if (choice == 'h') choice = '\0';
+      break;
+    
+    case 'h':
     default:
       timexdr_usage(argv[0], version);
       break;
@@ -762,12 +795,6 @@ int main(int argc, char *argv[])
   }
 
   switch (choice) {
-
-  case 'c':
-    dev = timexdr_open();
-    i = timex_ctrl(dev, vendor_ctrl_clear_eeprom, buf, RESPONSE_BUFSIZE);
-    timexdr_close(dev);
-    break;
 
   case 'a':
   case 'e':
@@ -797,7 +824,7 @@ int main(int argc, char *argv[])
     if (databuf == 0) fatal("databuf not initialized");
    
     /* The timeout may be unnecessary long but that is better than too short
-     * because this way we are sure that all data get tranferred.
+     * because this way we make sure that all data get tranferred.
      */
     timeout = (bytes / 2048 + 1) * 20 * TIMEXDR_CTRL_TIMEOUT;
 
@@ -824,17 +851,21 @@ int main(int argc, char *argv[])
     timexdr_close(dev);
     break;
 
-  case 't':
-    dev = timexdr_open();
-    if (timex_sync_time(dev, buf, RESPONSE_BUFSIZE) < 0) {
-      fatal("Time synchronization failed");
-    }
-    timexdr_close(dev);
-    break;
-    
-  default:
+  case 'h':
     timexdr_usage(argv[0], version);
     break;
+
+  default:
+    break;
+  }
+
+  /* This should be the last action of the program in case we want to 
+   * download the data before clearing the EEPROM
+   */
+  if (clear_eeprom) {
+    dev = timexdr_open();
+    i = timex_ctrl(dev, vendor_ctrl_clear_eeprom, buf, RESPONSE_BUFSIZE);
+    timexdr_close(dev);
   }
 
   return 0;
