@@ -152,8 +152,13 @@
 #define DIST_UNIT                   0.001  /* mile */
 
 /* Odometer quirks */
-#define ODO_MAX                     4096   /* miles */
+#define ODO_MAX                     4.096  /* miles */
 
+/* Unit conversion */
+#define MILES_TO_KM(mi)             (1.609344 * (mi)) 
+
+/* Global settings */
+int dist_units = 1;                 /* Distance units: 0 - miles, 1 - km */
 
 /* Vendor control commands */
 #define TIMEXDR_CTRL_SIZE      0xa
