@@ -1,4 +1,9 @@
-timexdr 
+Version 1.0-pre2
+----------------
+	- Set default units to SI units (kilometers).
+	- Option -m|--miles for switching between SI and imperial units.
+	- Corrected ODO_MAX to 4.096 miles so the distance counter can
+	actually display distances greater than 4.096 miles.
 
 Version 1.0-pre1
 ----------------
