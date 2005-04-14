@@ -1,0 +1,272 @@
+# Plot recorded HRM and/or GPS sessions. Each session should be stored in 
+# a file which is provided as a command line argument to this script.
+#
+# Example:
+#  gri plot_session.gri hrm.log gps.log
+#
+# Another example:
+#  gri plot_session.gri hrm.log
+#
+
+.nmax. = 3
+.n. = {rpn argc}
+
+if {rpn .n. 1 ==}
+    show "You must provide at least one data file name:"
+    show " gri "{rpn 0 argv}" file1 [file2]"
+    quit 1
+end if
+
+if {rpn .n. .nmax. <}
+    show "Too many data arguments specified. Extra arguments will be ignored."
+    .n. = .nmax.
+end if
+
+\gps_file = ""
+\hrm_file = ""
+
+\speed_title = "Speed [km/h]"
+\dist_title = "Distance [km]"
+\pace_title = "Pace [min/km]"
+\hrm_title = "Heart Rate [bpm]"
+
+set font to HelveticaBold
+set line width all 2
+set axes style 1
+set x name "Session Time [min]"
+
+set x size 16
+set y size 7 
+set x margin 3
+set y margin 1.5
+
+set clip on
+
+# Loop over data files
+.i. = 1
+while {rpn .n. .i. <}
+    \file = {rpn .i. argv}
+    open "head -n 1 \file | grep -o HRM | "
+    read line \sessiontype
+    if {"\sessiontype" == "HRM"}
+	\hrm_file = "\file"
+	open "head -n -1 \file | \
+	    gawk '{              \
+	    split($4, hms1, \":\"); \
+	    split($7, hms2, \":\"); \
+	    m1 = hms1[1] * 60 + hms1[2] + hms1[3] / 60;   \
+	    m2 = hms2[1] * 60 + hms2[2] + hms2[3] / 60;   \
+	    print($3, $4, $6, $7, m1, m2) }' | "
+	read \h_ymd1 \h_hms1 \h_ymd2 \h_hms2 .h_m1. .h_m2.
+    else
+	open "head -n 1 \file | grep -o GPS | "
+	read line \sessiontype
+	if {"\sessiontype" == "GPS"}
+	    \gps_file = "\file"
+	    open "head -n -1 \file | \
+		gawk '{              \
+		split($4, hms1, \":\"); \
+		split($7, hms2, \":\"); \
+		m1 = hms1[1] * 60 + hms1[2] + hms1[3] / 60;   \
+		m2 = hms2[1] * 60 + hms2[2] + hms2[3] / 60;   \
+		print($3, $4, $6, $7, m1, m2) }' | "
+	    read \g_ymd1 \g_hms1 \g_ymd2 \g_hms2 .g_m1. .g_m2.
+	end if
+    end if
+    .i. += 1
+end while
+
+# .n. will hold the number of data files
+.n. -= 1
+
+# If two data files are to be displayed, then we need to make sure that
+# the x axis cover time ranges for both of them. Furthermore, any time
+# shift between them will be calculated.
+# NOTE: This code does NOT handle sessions extending over midnight!
+if {rpn .n. 2 ==}
+ .hg1. = {rpn .h_m1. .g_m1. -}
+ .hg2. = {rpn .h_m2. .g_m2. -}
+ if {rpn .hg1. 0 <=}
+     \session_title = "\g_ymd1 \g_hms1 - "
+     .tmin. = .g_m1.
+ else
+     \session_title = "\h_ymd1 \h_hms1 - "
+     .tmin. = .h_m1.
+ end if
+ if {rpn .hg2. 0 >=}
+     \session_title = "\session_title \g_ymd2 \g_hms2"
+     .tmax. = .g_m2.
+ else
+     \session_title = "\session_title \h_ymd2 \h_hms2"
+     .tmax. = .h_m2.
+ end if
+ set x axis 0 {rpn .tmax. .tmin. -} 5 1
+else 
+    open "head -n 1 \file | sed 's:.*session\: ::' | "
+    read line \session_title
+end if
+
+# Draw title
+draw title "\session_title"
+
+# Without this, gri fails when plotting a single HRM session
+\distance = ".i."
+\avg_speed = ".i."
+\avg_pace = ".i."
+\avg_hrm = ".i."
+
+# -----
+
+if !{ "\gps_file" == "" }
+    
+    # Read time and speed
+    open "grep -v -e Missing -e Corrupted -e GMT  \
+	\gps_file  |  \
+	tail -n +3 |  \
+	gawk '{       \
+	split($1, hms, \":\");  \
+	x = hms[1] * 60 + hms[2] + hms[3] / 60;   \
+	print(x,$5) }' | "
+     
+    read columns x y
+    if {rpn .n. 2 ==}
+	if {rpn .hg1. 0 >}
+	    x += {rpn .hg1. abs}
+	end if
+    end if
+
+    set y name ""
+    set y axis {rpn y min} {rpn y max} 2 1
+    draw axes
+    set color brown
+    draw y axis
+    draw curve
+    draw label "\speed_title" at 3 0.2 cm
+
+    # Read time and distance
+    open "grep -v -e Missing -e Corrupted -e GMT  \
+	\gps_file  |  \
+	tail -n +3 |  \
+	gawk '{       \
+	split($1, hms, \":\");  \
+	x = hms[1] * 60 + hms[2] + hms[3] / 60;   \
+	print(x,$6) }' | "
+      
+    read columns x y
+    if {rpn .n. 2 ==} 
+	if {rpn .hg1. 0 >}
+	    x += {rpn .hg1. abs}
+	end if
+    end if
+    .distance. = {rpn y ..num_col_data.. 1 - @}
+    .elapsed_time. = {rpn x ..num_col_data.. 1 - @}
+    .avg_speed. = {rpn .distance. .elapsed_time. 60 / /}
+    .avg_pace. = {rpn .elapsed_time. .distance. /}
+    # Rounding and conversions
+    .avg_speed. = {rpn .avg_speed. 10 * 0.5 + floor 10 /}
+    .avg_pace_min. = {rpn .avg_pace. floor}
+    .avg_pace_sec. = {rpn .avg_pace. .avg_pace_min. - 60 * 0.5 + floor}
+    \distance = ".distance."
+    \avg_speed = ".avg_speed."
+    \avg_pace_min = ".avg_pace_min."
+    \avg_pace_sec = ".avg_pace_sec."
+
+    draw label "V = " at 21.3 5 cm
+    draw label "\@avg_speed" rightjustified at 24.3 5 cm
+    draw label whiteunder " km/h   " at 23.2 5 cm
+
+    set color blue
+    set y name ""
+    set y axis {rpn y min} {rpn y max} 2 1
+    draw y axis at right
+
+    draw curve	#overlying
+    draw label "\dist_title" at 16 0.2 cm
+    draw label "D = " at 21.3 3 cm
+    draw label "\@distance" rightjustified at 24.3 3 cm
+    draw label whiteunder " km  " at 23.7 3 cm
+
+    # Read time and pace
+    open "grep -v -e Missing -e Corrupted -e GMT  \
+	\gps_file  |  \
+	tail -n +3 |  \
+	gawk '{       \
+	split($1, hms, \":\");  \
+	x = hms[1] * 60 + hms[2] + hms[3] / 60;   \
+	if ($5 < 2) print(x,30); \
+	else print(x,60/$5) }' | "
+      
+    read columns x y
+    if {rpn .n. 2 ==}
+	if {rpn .hg1. 0 >}
+	    x += {rpn .hg1. abs}
+	end if
+    end if
+
+    set color orange
+    set y name ""
+    set axes style offset 1
+    if {rpn y max 15 >}
+	.maxpace. = {rpn y max}
+    else
+	.maxpace. = 15
+    end if 
+    #set y axis {rpn y min} {rpn y max} 2 1
+    set y axis {rpn y min} .maxpace. 2 1
+    draw y axis at left
+
+    draw curve	#overlying
+    draw label "\pace_title" at 0 0.2 cm
+    draw label "P = " at 21.3 4 cm
+    draw label "\@avg_pace_min" rightjustified at 24.3 4 cm
+    draw label whiteunder "'        " at 22.9 4 cm
+    draw label "\@avg_pace_sec" rightjustified at 25.2 4 cm
+    draw label whiteunder "\"        " at 23.8 4 cm
+
+end if
+    
+if !{ "\hrm_file" == "" }
+    open "grep -v -e Missing -e Corrupted -e GMT  \
+	\hrm_file  |  \
+	tail -n +3 |  \
+	gawk '{       \
+	split($1, hms, \":\");  \
+	x = hms[1] * 60 + hms[2] + hms[3] / 60;   \
+	print(x,$2) }' | "
+      
+    read columns x y
+    if {rpn .n. 2 ==} 
+	if {rpn .hg1. 0 <}
+	    x += .hg1.
+	end if
+    end if
+    .elapsed_time. = {rpn x ..num_col_data.. 1 - @}
+    .i. = 0
+    .hrm. = 0
+    while {rpn .i. ..num_col_data.. >}
+	.hrm. = {rpn .hrm. y .i. @ +}
+	.i. += 1
+    end while
+    .avg_hrm. = {rpn .hrm. .i. /}
+    \avg_hrm = ".avg_hrm." 
+    
+    set y axis {rpn y min} {rpn y max} 20 5
+    if { "\gps_file" == "" }
+	set y name "\hrm_title"
+	draw axes
+	set color green
+    else
+	set color green
+	set axes style offset 1
+	set y name ""
+	draw label "\hrm_title" at 19 0.2 cm 
+	draw y axis at right
+    end if
+    draw label "H = " at 21.3 2 cm
+    draw label "\@avg_hrm" rightjustified at 24.3 2 cm
+    draw label whiteunder " bpm   " at 22.9 2 cm
+
+    draw curve	#overlying
+    
+end if
+
