@@ -36,3 +36,17 @@ Please let me know if you know about a better solution.
 See the manual page:
 
 	man timexdr
+
+If you are wondering how do you plot the data, you are on your own for now
+although many utilities exist that could help you to display the data. 
+As a part of the source package, you will find a script plot_session.gri 
+which creates a Postscript file showing your excersise data. This script 
+requires GRI plotting language to be installed (homepage is 
+http://gri.sourceforge.net).
+
+To plot your HRM and GPS session use the following command:
+
+	gri plot_session.gri 20050411_081000-090000.hrm 20050411_081000-090000.gps
+
+Substitute files 20050411_081000-090000.{gps,hrm} with your own recorded 
+sessions. The Postscript image will now be stored in the file plot_session.ps. 
