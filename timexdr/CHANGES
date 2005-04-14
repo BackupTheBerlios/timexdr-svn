@@ -1,3 +1,10 @@
+Version 1.0
+-----------
+	- Added options -d and -f: The former option enables download of
+	sessions recorded within specified number of days only while the
+	second option makes timexdr to write the session data in file(s)
+	YYYYMMDD_HHMMSS-HHMMSS.{gps,hrm}.
+
 Version 1.0-pre2
 ----------------
 	- Set default units to SI units (kilometers).

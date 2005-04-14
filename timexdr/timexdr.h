@@ -116,6 +116,9 @@
 #define HRM_SESSION                 0x00
 #define GPS_SESSION                 0x20   /* ID varies 0x20-0x2f */
 
+#define HRM_FILE_EXT                "hrm"
+#define GPS_FILE_EXT                "gps"
+
 #define TIMEXDR_CTRL_TIMEOUT         600   /* in miliseconds */
 
 
@@ -159,6 +162,10 @@
 
 /* Global settings */
 int dist_units = 1;                 /* Distance units: 0 - miles, 1 - km */
+time_t initial_time = 0;            /* Download only sessions newer than 
+				       init_time */
+int write_session_to_file = 0;
+FILE *sfp;                          /* Session file pointer (stdout) */
 
 /* Vendor control commands */
 #define TIMEXDR_CTRL_SIZE      0xa

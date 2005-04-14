@@ -30,7 +30,7 @@
 #include "timexdr.h"
 
 
-static const char *version = "version 1.0-pre2, April 10, 2005";
+static const char *version = "version 1.0, April 14, 2005";
 
 int verbose = 0;
 
@@ -44,7 +44,6 @@ int verbose = 0;
 static double dist_offset = -1, dist_prev = -1, dist_base = 0;
 
 static char *progname;
-static char *empty=" ";
 
 static void print_session(const struct tdr_session *session);
 
@@ -61,7 +60,11 @@ static void timexdr_usage(const char *program, const char *ver) {
 	  "\nCommands:\n"
 	  "  -a, --all-sessions\tPrint all sessions.\n"
 	  "  -c, --clear-eeprom\tClear the EEPROM memory (delete all stored sessions).\n"
+	  "  -d NUM, --days=NUM\tPrint sessions recorded within the last NUM days.\n"
+	  "\t\t\tIf NUM is omitted or zero, today's sessions are printed."
 	  "  -e, --eeprom-dump\tDump the content of EEPROM (for debugging).\n"
+	  "  -f, --file\t\tCreate file(s) YYYYMMDD_HHMMSS-HHMMSS.{gps,hrm} for the\n"
+	  "\t\t\tsession data in the working directory.\n" 
 	  "  -h, --help\t\tDisplay this usage information.\n"
 	  "  -m, --miles\t\tShow distance and speed in miles and mph, respectively.\n"
 	  "\t\t\tThe default units are kilometers and kph.\n"
@@ -228,7 +231,7 @@ static int timex_ctrl(usb_dev_handle *dev, char *ctrldata,
 			TIMEXDR_CTRL_TIMEOUT);
 #ifdef TDR_DEBUG
   printf("---\ntimex_ctrl: %d bytes transferred (%s)\n\t", ret,  
-	 (ret < 0) ? usb_strerror() : empty);
+	 (ret < 0) ? usb_strerror() : NULL);
   if (ret > 0) {
     {
       int i;
@@ -271,6 +274,44 @@ static int timex_sync_time(usb_dev_handle *dev, char *buf, int bufsize) {
 }
 
 /*
+ * Set the initial time for session download. The parameter is number
+ * of days before now. The initial time is (now - days) adjusted
+ * down to the midnight.
+ */
+static void set_initial_time(time_t days) {
+  struct tm btime;
+
+  initial_time = time(NULL) - days*86400;
+  localtime_r(&initial_time, &btime);
+  btime.tm_sec = 0;
+  btime.tm_min = 0;
+  btime.tm_hour = 0;
+  initial_time = mktime(&btime);
+}
+
+/*
+ * Return 1 if the session time stamp is newer than initial_time
+ */
+static int newer_session(const struct tdr_header *ses_time) {
+  struct tm btime;
+  time_t sys_time;
+
+  if (initial_time == 0) {
+    return 1;
+  }
+  sys_time = time(NULL);
+  localtime_r(&sys_time, &btime); 
+  btime.tm_sec = ses_time->sec;
+  btime.tm_min = ses_time->min;
+  btime.tm_hour = ses_time->hour;
+  btime.tm_mday = ses_time->day;
+  btime.tm_mon = ses_time->month - 1;
+  btime.tm_year = ses_time->year - 1900;
+  
+  return mktime(&btime) >= initial_time;
+}
+
+/*
  * Calculates number of pages of size "psize" for given number of bytes.
  */
 static unsigned long int num_of_pages(const unsigned long int bytes, 
@@ -308,7 +349,7 @@ static void print_eeprom(unsigned char *buf, unsigned long int pages) {
 
   for (i=0; i < (pages*EEPROM_PAGESIZE); i++) {
     if ((i>0) && ((i % EEPROM_PAGESIZE) == 0)) printf("\n");
-    if ((i % 16) == 0) printf("\n%08x:\t", i);
+    if ((i % 16) == 0) printf("\n%08lx:\t", i);
     printf("%02x ", buf[i] & 0xff);	
   }
   printf("\n");
@@ -424,10 +465,9 @@ static void time2str(char *str_time, const unsigned long int seconds) {
   hr  = seconds / 3600;
   min = (seconds - hr*3600) / 60;
   sec = seconds % 60;
-  sprintf(str_time, "%02u:%02u:%02u", hr, min, sec);
+  sprintf(str_time, "%02lu:%02lu:%02lu", hr, min, sec);
 
 }
-
 
 /* 
  * Prints session header
@@ -435,26 +475,33 @@ static void time2str(char *str_time, const unsigned long int seconds) {
 static void session_header(char *sname, const struct tdr_header *hdr, 
 			   const struct tdr_header *ftr) {
   
-  printf("%s: %04u-%02u-%02u %02u:%02u:%02u - %04u-%02u-%02u %02u:%02u:%02u\n",
-	 sname, 
-	 hdr->year, hdr->month, hdr->day, hdr->hour, hdr->min, hdr->sec,
-	 ftr->year, ftr->month, ftr->day, ftr->hour, ftr->min, ftr->sec);
-
+  if (fprintf(sfp, "%s: %04u-%02u-%02u %02u:%02u:%02u - "
+	      "%04u-%02u-%02u %02u:%02u:%02u\n",
+	      sname, 
+	      hdr->year, hdr->month, hdr->day, hdr->hour, hdr->min, hdr->sec,
+	      ftr->year, ftr->month, ftr->day, ftr->hour, ftr->min, ftr->sec)
+      < 0) {
+    fatal("Error writing to a file");
+  }
 }
 
 /*
  * Prints information about a packet error
  */
-static void packet_error(double time, unsigned char token) {
+static void packet_error(double split_time, unsigned char token) {
   
-  time2str(time_str, time + 0.5);
+  time2str(time_str, split_time + 0.5);
 
   switch (token) {
   case MISSING_PACKET:
-    printf("%s\tMissing packet.\n", time_str);
+    if (fprintf(sfp, "%s\tMissing packet.\n", time_str) < 0) {
+      fatal("Error writing to a file");
+    }
     break;
   case CORRUPTED_PACKET:
-    printf("%s\tCorrupted packet.\n", time_str);
+    if (fprintf(sfp, "%s\tCorrupted packet.\n", time_str) < 0) {
+      fatal("Error writing to a file");
+    }
     break;
   default:
     fatal("Unknown packet error");
@@ -464,13 +511,52 @@ static void packet_error(double time, unsigned char token) {
 }
 
 /*
+ * Open output file for a session
+ */
+static void open_session_file(char *sname, 
+			      const struct tdr_header *hdr, 
+			      const struct tdr_header *ftr) {
+  char s[TIMEXDR_STRLEN];
+
+  if (write_session_to_file) {
+    sprintf(s, "%04u%02u%02u_%02u%02u%02u-%02u%02u%02u.%s",   
+	    hdr->year, hdr->month, hdr->day, hdr->hour, hdr->min, hdr->sec,
+	    ftr->hour, ftr->min, ftr->sec, sname);
+  
+#ifdef TDR_DEBUG
+    printf("file name: %s\tsession: %s\n", s,sname);
+#endif
+
+    if ((sfp = fopen(s, "w")) == NULL) {
+      fprintf(stderr, "%s: Can't open session file %s (%m).\n", progname, s);
+      exit(EXIT_FAILURE);
+    } 
+  } else {
+    sfp = stdout;
+  }
+}
+
+/*
+ * Close the output session file
+ */
+static void close_session_file(void) {
+  if (write_session_to_file) {
+    fclose(sfp);
+  } 
+}
+
+/*
  * Prints HRM session data to stdout.
  */
 static void hr_session(const struct tdr_session *ses) {
   unsigned long int i;
 
+  open_session_file(HRM_FILE_EXT, &(ses->header), &(ses->footer));
+
   session_header("HRM session", &(ses->header), &(ses->footer));
-  printf("  Time        HR[bpm]\n");
+  if (fprintf(sfp, "  Time        HR[bpm]\n") < 0) {
+    fatal("Error writing to a file");
+  }
 
   for (i=0; i < ses->nbytes; i++) {
     switch (ses->data[i]) {
@@ -480,11 +566,14 @@ static void hr_session(const struct tdr_session *ses) {
       break;
     default:
       time2str(time_str, i * TIME_STEP_HRM);
-      printf("%s\t%3u\n", time_str, ses->data[i]);
+      if (fprintf(sfp, "%s\t%3u\n", time_str, ses->data[i]) < 0) {
+	fatal("Error writing to a file");
+      }
       break;
     }
   }
 
+  close_session_file();
 }
 
 /*
@@ -531,7 +620,7 @@ static void dist_corrections(double *dist){
 /*
  * Decodes and prints GPS packet type 1 (Status, Speed and Distance)
  */
-static void gps_packet_1(double *time, unsigned char status_byte, 
+static void gps_packet_1(double *split_time, unsigned char status_byte, 
 			 unsigned char hsb, unsigned char lsb_speed, 
 			 unsigned char lsb_odo) {
   
@@ -541,11 +630,17 @@ static void gps_packet_1(double *time, unsigned char status_byte,
   if (dist_offset < 0) {
     switch (dist_units) {
     case 0:          /* Imperial units: miles */
-      printf("  Time\t\tStatus\tACQ\tBAT\tV [mph]\tD [miles]\n");
+      if (fprintf(sfp, "  Time\t\tStatus\tACQ\tBAT\tV [mph]\tD [miles]\n")
+	  < 0) {
+	fatal("Error writing to a file");
+      }
       break;
     case 1:          /* SI units: kilometers */
     default:
-      printf("  Time\t\tStatus\tACQ\tBAT\tV [kph]\t   D [km]\n");
+      if (fprintf(sfp, "  Time\t\tStatus\tACQ\tBAT\tV [kph]\t   D [km]\n")
+	  < 0) {
+	fatal("Error writing to a file");
+      }
       break;
     }
   }
@@ -559,17 +654,20 @@ static void gps_packet_1(double *time, unsigned char status_byte,
 		  ( ((long int) (hsb & 0x0f)) << 8 )) * DIST_UNIT;
   dist_corrections(&dist);
 
-  time2str(time_str, *time + 0.5);
-  printf("%s\t0x%x\t0x%x\t0x%x\t%5.1f\t%9.3f\n", 
-	 time_str, status, acq, battery, unit_conv(speed), unit_conv(dist));
+  time2str(time_str, *split_time + 0.5);
+  if (fprintf(sfp, "%s\t0x%x\t0x%x\t0x%x\t%5.1f\t%9.3f\n", 
+	      time_str, status, acq, battery, 
+	      unit_conv(speed), unit_conv(dist)) < 0) {
+    fatal("Error writing to a file");
+  }
 
-  *time += TIME_STEP_GPS;
+  *split_time += TIME_STEP_GPS;
 }
 
 /*
  * Decodes and prints GPS packet type 4 (Time and Date)
  */
-static void gps_packet_4(double *time, unsigned char mo_yr, 
+static void gps_packet_4(double *split_time, unsigned char mo_yr, 
 			 unsigned char mi_da, unsigned char da_hr, 
 			 unsigned char bsec) {
   int year, month, day, hour, min;
@@ -586,11 +684,13 @@ static void gps_packet_4(double *time, unsigned char mo_yr,
   min   = (int)(mi_da & 0xfc) >> 2;
   sec   = (float)((int)(bsec & 0xfc) >> 2) + (float)((int)(bsec & 0x03))*0.25;
   
-  time2str(time_str, *time + 0.5);
-  printf("%s\t%i-%02i-%02i %2i:%02i:%05.2f GMT\n", time_str, 
-	 year, month, day, hour, min, sec);
+  time2str(time_str, *split_time + 0.5);
+  if (fprintf(sfp, "%s\t%i-%02i-%02i %2i:%02i:%05.2f GMT\n", time_str, 
+	      year, month, day, hour, min, sec) < 0) {
+    fatal("Error writing to a file");
+  }
 
-  *time += TIME_STEP_GPS;
+  *split_time += TIME_STEP_GPS;
 }
 
 /*
@@ -598,7 +698,7 @@ static void gps_packet_4(double *time, unsigned char mo_yr,
  */
 static void gps_session(const struct tdr_session *ses) { 
   unsigned long int i, psize, bytes = ses->nbytes;
-  double time = 0.0;
+  double split_time = 0.0;
   
   if ( ses->nbytes < GPS_PACKET_MIN_LENGTH ) {
     fprintf(stderr, "Skipping GPS session: Packet too short.");
@@ -609,6 +709,8 @@ static void gps_session(const struct tdr_session *ses) {
   dist_prev = -1;
   dist_base = 0;
 
+  open_session_file(GPS_FILE_EXT, &(ses->header), &(ses->footer));
+
   session_header("GPS session", &(ses->header), &(ses->footer));
  
   for (i=0; (i < bytes) && 
@@ -617,15 +719,15 @@ static void gps_session(const struct tdr_session *ses) {
     
     switch (ses->data[i]) {
     case PACKET_TYPE_ERROR:
-      packet_error(time, ses->data[i+1]);
-      time += TIME_STEP_GPS;
+      packet_error(split_time, ses->data[i+1]);
+      split_time += TIME_STEP_GPS;
       break;
     case PACKET_TYPE_1:
-      gps_packet_1(&time, ses->data[i+1], ses->data[i+2], 
+      gps_packet_1(&split_time, ses->data[i+1], ses->data[i+2], 
 		   ses->data[i+3], ses->data[i+4]);
       break;
     case PACKET_TYPE_4:
-      gps_packet_4(&time, ses->data[i+1], ses->data[i+2], 
+      gps_packet_4(&split_time, ses->data[i+1], ses->data[i+2], 
 		   ses->data[i+3], ses->data[i+4]);
       break;  
     case PACKET_TYPE_2:
@@ -633,10 +735,12 @@ static void gps_session(const struct tdr_session *ses) {
     case PACKET_TYPE_5:
     case PACKET_TYPE_15:
     default:
-      fatal("This GPS packet handling not implemented yet");
+      fatal("This GPS packet handling is not implemented yet");
       break;
     }
   }
+
+  close_session_file();
   
 }
 
@@ -711,21 +815,23 @@ static void print_session(const struct tdr_session *session) {
   struct tdr_session *ses;
 
   for (ses = session; ses;  ses = ses->next) {
-
-   switch (ses->header.dev & SESSION_MASK) {
-    case HRM_SESSION:
-      hr_session(ses);
-      break;
-    case GPS_SESSION:
-      gps_session(ses);
-      break;
-    case MULTI_DEVICE_SESSION & SESSION_MASK:
-      multi_session(ses);
-      break;
-    default:
-      errno = 0;
-      fatal("Unknown session");
-      break;
+    
+    if (newer_session(&ses->header)) {
+      switch (ses->header.dev & SESSION_MASK) {
+      case HRM_SESSION:
+	hr_session(ses);
+	break;
+      case GPS_SESSION:
+	gps_session(ses);
+	break;
+      case MULTI_DEVICE_SESSION & SESSION_MASK:
+	multi_session(ses);
+	break;
+      default:
+	errno = 0;
+	fatal("Unknown session");
+	break;
+      }
     }
     
   }
@@ -746,7 +852,9 @@ int main(int argc, char *argv[])
   static struct option long_options[] = {
     {"all-sessions", 0, NULL, 'a'},
     {"clear-eeprom", 0, NULL, 'c'},
+    {"days", 2, NULL, 'd'},             /* Takes an optional argument */
     {"eeprom-dump", 0, NULL, 'e'},
+    {"file", 0, NULL, 'f'},
     {"help",  0, NULL, 'h'},
     {"miles", 0, NULL, 'm'},
     {"time-sync", 0, NULL, 't'},
@@ -754,9 +862,10 @@ int main(int argc, char *argv[])
   };
   
   progname = argv[0];
+  //  sfp = stdout;
 
   while (1) {
-    c = getopt_long(argc, argv, "acehmt",
+    c = getopt_long(argc, argv, "acd::efhmt",
 		    long_options, NULL);
 
     if (c == -1) {
@@ -772,6 +881,20 @@ int main(int argc, char *argv[])
     case 'c':
       clear_eeprom = 1;
       if (choice == 'h') choice = '\0';
+      break;
+    
+    case 'd':
+      if (optarg) {
+	set_initial_time(atol(optarg));
+      } else {
+	set_initial_time(0);
+      }
+      choice = c;
+      break;
+
+    case 'f':
+      write_session_to_file = 1;
+      if (choice == 'f') choice = '\0';
       break;
 
     case 'm':
@@ -797,6 +920,7 @@ int main(int argc, char *argv[])
   switch (choice) {
 
   case 'a':
+  case 'd':
   case 'e':
     dev = timexdr_open();
     i = timex_ctrl(dev, vendor_ctrl_1, buf, RESPONSE_BUFSIZE);
@@ -823,8 +947,8 @@ int main(int argc, char *argv[])
     databuf = (char *)calloc(bufsize, sizeof(char));
     if (databuf == 0) fatal("databuf not initialized");
    
-    /* The timeout may be unnecessary long but that is better than too short
-     * because this way we make sure that all data get tranferred.
+    /* The timeout may be unnecessary long but that is better than too short.
+     * This way we make sure that all data get tranferred.
      */
     timeout = (bytes / 2048 + 1) * 20 * TIMEXDR_CTRL_TIMEOUT;
 
@@ -840,6 +964,7 @@ int main(int argc, char *argv[])
       print_eeprom(databuf, num_of_pages(bytes, EEPROM_PAGESIZE));
       break;
     case 'a':
+    case 'd':
       squeeze_data(databuf, bytes);
       session = split_data(databuf);
       print_session(session);
