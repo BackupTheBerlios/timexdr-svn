@@ -1,4 +1,4 @@
-.TH TIMEXDR 1 "11 April 2005"
+.TH TIMEXDR 1 "14 April 2005"
 .SH NAME
 TIMEXDR \- Timex Data Recorder control program
 .SH SYNOPSIS
@@ -10,7 +10,8 @@ is utility that can download data from the Timex Data Recorder device.
 This device records heart rate monitor (HRM) and/or position data (GPS)
 transmitted from Timex Bodylink HRM and GPS sensors.
 .P
-Data are printed to the standard output (STDOUT). 
+Stored data are printed to the standard output (STDOUT) by default (see
+option -f/--file for more details). 
 .SH OPTIONS
 .TP
 .B \-a, --all-sessions
@@ -21,9 +22,18 @@ last one will be the one that's used.
 Clear the EEPROM memory (delete all recorded sessions). Memory is cleared
 after data are displayed if requested by the -a or -e options. 
 .TP
+.B \-d NUM, --days=NUM
+Print only sessions recorded within the last NUM days. If NUM is omitted or
+zero, today's sessions are printed.
+.TP
 .B \-e, --eeprom-dump
 Dump the EEPROM memory content. If both -a and -e options are used, the
 last one will be the one that's used. 
+.TP
+.B \-f, --file
+Write the session data into file(s) named YYYYMMDD_HHMMSS-HHMMSS.{gps,hrm}
+where the time corresponds to the session start and stop times. The files 
+are placed in the working directory.
 .TP
 .B \-h, --help
 Display usage information.
@@ -59,6 +69,20 @@ To display all stored session data, synchronize the clock, and clear the
 EEPROM memory afterwards:
 .PP
     timexdr \-c \-a \-t
+.PP
+To display only sessions recorded today and yesterday:
+.PP
+    timexdr \-d1
+.PP
+Download only today's session(s) and store them in files 
+YYYYMMDD_HHMMSS-HHMMSS.{gps,hrm}:
+.PP
+    timexdr \-d \-f
+.PP
+To store all recorded sessions in files YYYYMMDD_HHMMSS-HHMMSS.{gps,hrm}
+in the working directory:
+.PP
+    timexdr \-a \-f
 .SH FILES
 .TP 
 .B /proc/bus/usb/BBB/DDD
