@@ -5,8 +5,8 @@ AC_PREREQ(2.59)
 AC_INIT(timexdr, 1.0, merka@highsphere.net)
 AC_CONFIG_AUX_DIR(config)
 #AC_CONFIG_SRCDIR([src/timexdr.c])
-AC_CONFIG_SRCDIR([config.h.in])
-AC_CONFIG_HEADER([config.h])
+AC_CONFIG_SRCDIR([include/config.h.in])
+AC_CONFIG_HEADER([include/config.h])
 
 AM_INIT_AUTOMAKE
 
@@ -32,5 +32,6 @@ AC_CHECK_FUNCS([localtime_r])
 
 AC_CONFIG_FILES([Makefile
 		 doc/Makefile
+		 include/Makefile
 		 src/Makefile])
 AC_OUTPUT

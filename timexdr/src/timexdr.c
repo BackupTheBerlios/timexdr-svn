@@ -29,7 +29,7 @@
 
 static const char *version = "version 1.0, April 14, 2005";
 
-int verbose = 0;
+int verbose = 1;
 
 /* Odometer quirks: 
  *   dist_offset - to eliminate non-zero session offset
@@ -140,16 +140,25 @@ static usb_dev_handle *timexdr_open(void) {
 	   dev->descriptor.idProduct, prod_name);
 #endif
 
+/* This started causing problems (fails every time) some time between the 
+ * release of timexdr 1.0 and February 2006. Probably due to changes in 
+ * kernel usb drivers. On the other hand, it doesn't appear to be necessary
+ * anymore
     if ( usb_set_configuration(udev, TIMEXDR_CONFIG) < 0 ) {
       fatal("Couldn't set configuration");
-    }
+      }
+ */
 
+/* Non-portable Linux-only code */
+#ifdef LIBUSB_HAS_GET_DRIVER_NP
     if ( usb_get_driver_np(udev, TIMEXDR_INTERFACE, dname, DNAMELEN) == 0 ) {
       if ( usb_detach_kernel_driver_np(udev, TIMEXDR_INTERFACE) < 0 ) {
 	fprintf(stderr, "Couldn't detach kernel driver %s (%m).\n", dname);
 	exit(EXIT_FAILURE);
       } 
-    }
+    } /* Don't stop here if usb_get_driver_np fails because that only 
+	 means there is no kernel driver to be detached */
+#endif
 
     if ( usb_claim_interface(udev, TIMEXDR_INTERFACE) < 0 ) {
       fatal("Couldn't claim interface");

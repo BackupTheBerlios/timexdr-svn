@@ -1,8 +1,8 @@
 ## Makefile.am -- Process this file with automake to produce Makefile.in
 
-INCLUDES	= -I$(top_builddir)
+INCLUDES	= -I$(top_builddir) -I$(top_builddir)/include
 
-noinst_HEADERS	= timexdr.h common.h
+#noinst_HEADERS	= timexdr.h common.h
 
 bin_PROGRAMS	= timexdr
 timexdr_SOURCES = timexdr.c
