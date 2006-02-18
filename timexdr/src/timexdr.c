@@ -27,7 +27,8 @@
 #include "timexdr.h"
 
 
-static const char *version = "version 1.0, April 14, 2005";
+//static const char *version = "version 1.0, April 14, 2005";
+static const char *version = "version " VERSION;
 
 int verbose = 1;
 
@@ -45,28 +46,38 @@ static char *progname;
 static void print_session(const struct tdr_session *session);
 
 /*
+ * Print version information and exit
+ */
+static void timexdr_version(void) {
+  fprintf(stdout, PACKAGE " " VERSION "\n");
+  exit(EXIT_SUCCESS);
+}
+
+/*
  * Prints the program usage.
  *
  *      program: program filename
  */
-static void timexdr_usage(const char *program, const char *ver) {
+static void timexdr_usage(const char *program) {
   
   fprintf(stderr,
-	  "Timex Data Recorder control program %s\n\n"
+	  "Timex Data Recorder control program "
+          "version " VERSION "\n\n"
 	  "Usage: %s [COMMAND] [OPTION]...\n"
 	  "\nCommands:\n"
 	  "  -a, --all-sessions\tPrint all sessions.\n"
 	  "  -c, --clear-eeprom\tClear the EEPROM memory (delete all stored sessions).\n"
 	  "  -d NUM, --days=NUM\tPrint sessions recorded within the last NUM days.\n"
-	  "\t\t\tIf NUM is omitted or zero, today's sessions are printed."
+	  "\t\t\tIf NUM is omitted or zero, today's sessions are printed.\n"
 	  "  -e, --eeprom-dump\tDump the content of EEPROM (for debugging).\n"
 	  "  -f, --file\t\tCreate file(s) YYYYMMDD_HHMMSS-HHMMSS.{gps,hrm} for the\n"
 	  "\t\t\tsession data in the working directory.\n" 
 	  "  -h, --help\t\tDisplay this usage information.\n"
 	  "  -m, --miles\t\tShow distance and speed in miles and mph, respectively.\n"
 	  "\t\t\tThe default units are kilometers and kph.\n"
-	  "  -t, --time-sync\tSynchronize device's clock with system local time.\n",
-	  ver, program);
+	  "  -t, --time-sync\tSynchronize device's clock with system local time.\n"
+	  "  -V, --version\t\tPrint version information and exit.\n", 
+	  program);
 
   exit(EXIT_FAILURE);
 }
@@ -864,6 +875,7 @@ int main(int argc, char *argv[])
     {"help",  0, NULL, 'h'},
     {"miles", 0, NULL, 'm'},
     {"time-sync", 0, NULL, 't'},
+    {"version", 0, NULL, 'V'},
     {NULL, 0, NULL, 0}
   };
   
@@ -871,7 +883,7 @@ int main(int argc, char *argv[])
   //  sfp = stdout;
 
   while (1) {
-    c = getopt_long(argc, argv, "acd::efhmt",
+    c = getopt_long(argc, argv, "acd::efhmtV",
 		    long_options, NULL);
 
     if (c == -1) {
@@ -915,10 +927,14 @@ int main(int argc, char *argv[])
       timexdr_close(dev);
       if (choice == 'h') choice = '\0';
       break;
-    
+
+    case 'V':
+      timexdr_version();
+      break;
+   
     case 'h':
     default:
-      timexdr_usage(argv[0], version);
+      timexdr_usage(argv[0]);
       break;
     }
   }
@@ -983,7 +999,7 @@ int main(int argc, char *argv[])
     break;
 
   case 'h':
-    timexdr_usage(argv[0], version);
+    timexdr_usage(argv[0]);
     break;
 
   default:
