@@ -8,6 +8,23 @@
 #  gri plot_session.gri hrm.log
 #
 
+.xsize. = 18
+.ysize. = 7
+.xmargin. = 2.5
+.ymargin. = 1.5
+.xlabel. = {rpn .xsize. .xmargin. 2 * +}
+.ystep. = 1
+.ylabel. = {rpn .ysize. .ymargin. + .ystep. -}
+
+.xtrans. = 2
+.ytrans. = 3
+set page size A4
+set page landscape
+set page translate .xtrans. .ytrans. 
+set bounding box {rpn .xtrans. 1 -} .ytrans. \
+    {rpn .xtrans. .xsize. .xmargin. 2 * + + 3.5 +} \
+    {rpn .ytrans. .ysize. .ymargin. 2 * + + 1 +} cm
+
 .nmax. = 3
 .n. = {rpn argc}
 
@@ -35,10 +52,11 @@ set line width all 2
 set axes style 1
 set x name "Session Time [min]"
 
-set x size 16
-set y size 7 
-set x margin 3
-set y margin 1.5
+
+set x size .xsize.
+set y size .ysize. 
+set x margin .xmargin.
+set y margin .ymargin.
 
 set clip on
 
@@ -141,7 +159,7 @@ if !{ "\gps_file" == "" }
     set color brown
     draw y axis
     draw curve
-    draw label "\speed_title" at 3 0.2 cm
+    draw label "\speed_title" at .xmargin. 0.2 cm
 
     # Read time and distance
     open "grep -v -e Missing -e Corrupted -e GMT  \
@@ -171,9 +189,12 @@ if !{ "\gps_file" == "" }
     \avg_pace_min = ".avg_pace_min."
     \avg_pace_sec = ".avg_pace_sec."
 
-    draw label "V = " at 21.3 5 cm
-    draw label "\@avg_speed" rightjustified at 24.3 5 cm
-    draw label whiteunder " km/h   " at 23.2 5 cm
+#    draw label "V = " at 21.3 5 cm
+#    draw label "\@avg_speed" rightjustified at 24.3 5 cm
+#    draw label whiteunder " km/h   " at 23.2 5 cm
+    draw label "V = " at .xlabel. .ylabel. cm
+    draw label "\@avg_speed" rightjustified at {rpn .xlabel. 3 +} .ylabel. cm
+    draw label whiteunder " km/h   " at {rpn .xlabel. 1.9 +} .ylabel. cm
 
     set color blue
     set y name ""
@@ -181,10 +202,13 @@ if !{ "\gps_file" == "" }
     draw y axis at right
 
     draw curve	#overlying
-    draw label "\dist_title" at 16 0.2 cm
-    draw label "D = " at 21.3 3 cm
-    draw label "\@distance" rightjustified at 24.3 3 cm
-    draw label whiteunder " km  " at 23.7 3 cm
+    draw label "\dist_title" rightjustified at \
+	{rpn .xsize. .xmargin. +} 0.2 cm
+    draw label "D = " at .xlabel. {rpn .ylabel. .ystep. 2 * -} cm
+    draw label "\@distance" rightjustified at \
+	{rpn .xlabel. 3 +} {rpn .ylabel. .ystep. 2 * -} cm
+    draw label whiteunder " km  " at \
+	{rpn .xlabel. 2.4 +} {rpn .ylabel. .ystep. 2 * -} cm
 
     # Read time and pace
     open "grep -v -e Missing -e Corrupted -e GMT  \
@@ -216,12 +240,19 @@ if !{ "\gps_file" == "" }
     draw y axis at left
 
     draw curve	#overlying
-    draw label "\pace_title" at 0 0.2 cm
-    draw label "P = " at 21.3 4 cm
-    draw label "\@avg_pace_min" rightjustified at 24.3 4 cm
-    draw label whiteunder "'        " at 22.9 4 cm
-    draw label "\@avg_pace_sec" rightjustified at 25.2 4 cm
-    draw label whiteunder "\"        " at 23.8 4 cm
+    draw label "\pace_title" rightjustified at \
+	{rpn .xmargin. 0.5 -} 0.2 cm
+    draw label "P = " at .xlabel. {rpn .ylabel. .ystep. -} cm
+    draw label "\@avg_pace_min" rightjustified at \
+	{rpn .xlabel. 3 +} {rpn .ylabel. .ystep. -} cm
+    draw label whiteunder "'        " at \
+	{rpn .xlabel. 1.6 +} {rpn .ylabel. .ystep. -} cm
+    draw label "\@avg_pace_sec" rightjustified at \
+	{rpn .xlabel. 3.9 +} {rpn .ylabel. .ystep. -} cm
+    # These temporary variables are necessary as a gri bug work-around
+    .xtmp. = {rpn .xlabel. 2.5 +}
+    .ytmp. = {rpn .ylabel. .ystep. -}
+    draw label whiteunder "\"          " at .xtmp. .ytmp. cm
 
 end if
     
@@ -259,12 +290,14 @@ if !{ "\hrm_file" == "" }
 	set color green
 	set axes style offset 1
 	set y name ""
-	draw label "\hrm_title" at 19 0.2 cm 
+	draw label "\hrm_title" at {rpn .xsize. .xmargin. 0.5 + +} 0.2 cm 
 	draw y axis at right
     end if
-    draw label "H = " at 21.3 2 cm
-    draw label "\@avg_hrm" rightjustified at 24.3 2 cm
-    draw label whiteunder " bpm   " at 22.9 2 cm
+    draw label "H = " at .xlabel. {rpn .ylabel. .ystep. 3 * -} cm
+    draw label "\@avg_hrm" rightjustified at \
+	{rpn .xlabel. 3 +} {rpn .ylabel. .ystep. 3 * -} cm
+    draw label whiteunder " bpm   " at \
+	{rpn .xlabel. 1.6 +} {rpn .ylabel. .ystep. 3 * -} cm
 
     draw curve	#overlying
     
