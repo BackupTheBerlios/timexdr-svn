@@ -19,8 +19,8 @@
  *      
  */             
 
-#ifndef _TDR_H_
-#define _TDR_H_
+#ifndef TDR_TIMEXDR_H
+#define TDR_TIMEXDR_H 1
 
 //#define TDR_DEBUG  
 
@@ -217,4 +217,4 @@ struct tdr_session {
   unsigned long int nbytes;
 };
 
-#endif /* _TDR_H_ */
+#endif /* TDR_TIMEXDR_H */

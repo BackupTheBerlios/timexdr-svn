@@ -17,16 +17,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *      
- */             
+ */   
 
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <errno.h>
-#include <getopt.h>
-#include <time.h>
+#if HAVE_CONFIG_H
+#  include <config.h>
+#endif
 
-#include <usb.h>
+#include "common.h"
 #include "timexdr.h"
 
 
