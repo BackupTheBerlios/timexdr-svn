@@ -22,7 +22,7 @@
 #ifndef TDR_TIMEXDR_H
 #define TDR_TIMEXDR_H 1
 
-//#define TDR_DEBUG  
+#define TDR_DEBUG 1
 
 /*-------------------------------------------------------------------------*/
 
@@ -160,22 +160,97 @@
 /* Unit conversion */
 #define MILES_TO_KM(mi)             (1.609344 * (mi)) 
 
-/* Global settings */
-int dist_units = 1;                 /* Distance units: 0 - miles, 1 - km */
-time_t initial_time = 0;            /* Download only sessions newer than 
-				       init_time */
-int write_session_to_file = 0;
-FILE *sfp;                          /* Session file pointer (stdout) */
+/* Output report array: Byte 0 is the Report Number, byte 1 specifies the 
+ * configuration, byte 2 encodes command type and the number n of bytes to send 
+ * counting this byte as the first, byte n+2 keeps the checksum, and the
+ * rest is insignificant. 
+ */
+#define TIMEXDR_CTRL_SIZE           0xa
+char ctrl_cmd[TIMEXDR_CTRL_SIZE] = {0x01, 0x0, 0x0, 0x0, 0x0, 
+				    0x0, 0x0, 0x0, 0x0, 0x0};
+
+/* Vendor command definitions */
+#define EEPROM_USAGE               0
+#define EEPROM_CLEAR               1
+#define DATA_UPLOAD                2
+#define UPLOAD_CANCEL              3
+#define SYNC_TIME                  4
+#define UPLOAD_DONE                5
+#define SW_TIMEOUT                 6
+#define FW_VERSION                 7
+#define EEPROM_TEST                8
+#define ROM_TEST                   9
+#define RAM_TEST                  10
+#define READ_BOND_OPTION          11
+#define MODIFY_BOND_OPTION        12
+#define RESTORE_BOND_OPTION       13
+#define EEPROM_CAPACITY           14
+#define RAM_ROM_DEBUG             15
+
+/* Vendor configuration commands */
+/* Configuration byte structure
+ * -----------------------------------------------------------------
+ * | bit 7 | bit 6 | bit 5 | bit 4 | bit 3 | bit 2 | bit 1 | bit 0 |
+ * -----------------------------------------------------------------
+ * bit 5 - bit 0  =  data size expected from device (?)
+ *         bit 6  =  command direction
+ *                   0 - for USB alone (USB Microcontroller)
+ *                   1 - for data recorder (Main Microcontroller)
+ *         bit 7  =  reply type
+ *                   0 - ACK command only
+ *                   1 - ACK command with data
+ */
+#define CMD_EEPROM_USAGE               0x40  |  0xc2
+#define CMD_EEPROM_CLEAR               0x40
+#define CMD_DATA_UPLOAD                         0xc2
+#define CMD_UPLOAD_CANCEL              0x40
+#define CMD_SYNC_TIME                  0x40
+#define CMD_UPLOAD_DONE                0x40
+#define CMD_SW_TIMEOUT                 0x40
+#define CMD_FW_VERSION_USB_MICRO                       0x83                
+#define CMD_FW_VERSION_MAIN_MICRO               0xc3                
+#define CMD_EEPROM_TEST                0x40
+#define CMD_ROM_TEST_USB_MICRO                                0x00
+#define CMD_ROM_TEST_MAIN_MICRO        0x40
+#define CMD_RAM_TEST_USB_MICRO                                0x00
+#define CMD_RAM_TEST_MAIN_MICRO        0x40
+#define CMD_READ_BOND_OPTION           0x40  |         0x81
+#define CMD_MODIFY_BOND_OPTION         0x40
+#define CMD_RESTORE_BOND_OPTION        0x40
+#define CMD_EEPROM_CAPACITY                     0xc3
+#define CMD_RAM_ROM_DEBUG              0x40  |  0xc1
+
+/* Microcontroller targets */
+#define DEFAULT_MICRO   0
+#define USB_MICRO       1
+#define MAIN_MICRO      2
+
+/* Encode command type and number of bytes */
+#define ENC_CMD_TYPE(ct, nb)           (((ct) << 4) + (nb)) 
+
+/* Decode firmware version */
+#define DEC_FW_VER(b3, b4, b5)                      \
+  (((b5) >> 4 ) * 100000 + ((b5) & 0x0F) * 10000 +  \
+   ((b4) >> 4)  * 1000   + ((b4) & 0x0F) * 100   +  \
+   ((b3) >> 4)  * 10     + ((b3) & 0x0F))
+
 
 /* Vendor control commands */
-#define TIMEXDR_CTRL_SIZE      0xa
 
-char vendor_ctrl_1[] = {0x01, 0xc3, 0x71, 0x8f, 0x11, 0x11, 
+/* Get the firmware version of the device main microcontroller */
+/*char vendor_ctrl_fw_version[] = {0x01, 0xc3, 0x71, 0x8f, 0x11, 0x11, 
 			0x00, 0x00, 0x30, 0x1c};
+*/
+char vendor_ctrl_fw_version[] = {0x01, 0x83, 0x71, 0x8f, 0x0, 0x0, 
+			0x00, 0x00, 0x0, 0x0};
+
 char vendor_ctrl_2[] = {0x01, 0xc1, 0xf5, 0x20, 0xf0, 0xb1, 
 			0x01, 0x49, 0x55, 0x1f};
-char vendor_ctrl_last_address[] = {0x01, 0xc2, 0x01, 0xff, 0x11, 0x11, 
+/*char vendor_ctrl_last_address[] = {0x01, 0xc2, 0x01, 0xff, 0x11, 0x11, 
 				   0x00, 0x00, 0x30, 0x1c};
+*/
+char vendor_ctrl_last_address[] = {0x01, 0xc2, 0x01, 0xff, 0x0, 0x0, 
+				   0x00, 0x00, 0x0, 0x0};
 char vendor_ctrl_4[] = {0x01, 0xc3, 0xe1, 0x1f, 0x11, 0x11, 
 			0x00, 0x00, 0x30, 0x1c};
 /* The 8th and 10th bytes of the vendor_ctrl_read_memory control command 
@@ -216,5 +291,19 @@ struct tdr_session {
   unsigned char *data;
   unsigned long int nbytes;
 };
+
+struct tdr_fw_ver {
+  long int main;
+  long int usb;
+};
+
+/* Global settings */
+int dist_units = 1;                 /* Distance units: 0 - miles, 1 - km */
+time_t initial_time = 0;            /* Download only sessions newer than 
+				       init_time */
+int write_session_to_file = 0;
+FILE *sfp;                          /* Session file pointer (stdout) */
+
+struct tdr_fw_ver firmware = {main:0, usb:0};
 
 #endif /* TDR_TIMEXDR_H */

@@ -232,6 +232,100 @@ static int timex_int_read(usb_dev_handle *dev, char *buf, int size,
 }
 
 /*
+ * Prepare the control command (output report) to be sent to the device
+ * Inputs: cmdtype - specify command type as defined in the header file
+ *         micro - optional, specify which microcontroller is the recipient
+ */
+
+static void prepare_cmd(char cmdtype, char micro) {
+  int n = 1;   // number of bytes to send
+  int cs= 0;   // checksum
+
+  /* Report number */
+  ctrl_cmd[0] = 0x01;
+  /* Most of the commands send 1 byte so this is a good default */
+  ctrl_cmd[2] = ENC_CMD_TYPE(cmdtype, n); 
+
+  switch (cmdtype) {
+  case EEPROM_USAGE:
+    ctrl_cmd[1] = CMD_EEPROM_USAGE; 
+    break;
+  case EEPROM_CLEAR:
+  case UPLOAD_CANCEL:
+  case UPLOAD_DONE:
+  case SW_TIMEOUT:
+    /* Command 0x40 */
+    ctrl_cmd[1] = CMD_EEPROM_CLEAR;
+    break;
+  case DATA_UPLOAD:
+    ctrl_cmd[1] = CMD_DATA_UPLOAD;
+    break;
+  case FW_VERSION:
+    /* Default microcontroller is MAIN_MICRO */
+    ctrl_cmd[1] = (micro == USB_MICRO) ? 
+      CMD_FW_VERSION_USB_MICRO : CMD_FW_VERSION_MAIN_MICRO;
+    break;
+  case EEPROM_CAPACITY:
+    ctrl_cmd[1] = CMD_EEPROM_CAPACITY;
+    break;
+  default:
+    fatal("prepare_cmd: Unknown command type");
+    break;
+  }
+
+  /* Calculate the checksum */
+  cs =+ (int) ctrl_cmd[2];
+  ctrl_cmd[n+2] = ( ~cs + 1 ) % 256;
+
+  /* Fill up the rest of ctrl_cmd with zeros */
+  /* Not needed for functionality but convenient for debugging */
+  { 
+    int i;
+    for (i=n+3; i<TIMEXDR_CTRL_SIZE; i++) {
+      ctrl_cmd[i] = 0x0; 
+    }
+  }
+}
+
+/*
+ * Sends a control message of cmdtype to the device's microcontroller micro.
+ */
+static int timex_ctrl2(usb_dev_handle *dev, char cmdtype, char micro,  
+		      char *buf, int bufsize) {
+  int ret;
+
+  /* Prepare the control message (output report) */
+  prepare_cmd(cmdtype, micro);
+
+  /* Send the report */
+  ret = usb_control_msg(dev, 
+			USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE, 
+			USB_REQ_SET_CONFIGURATION, 
+			0x201, 
+			0, 
+			ctrl_cmd, 
+			TIMEXDR_CTRL_SIZE, 
+			TIMEXDR_CTRL_TIMEOUT);
+#ifdef TDR_DEBUG
+  printf("---\ntimex_ctrl: %d bytes transferred (%s)\n\t", ret,  
+	 (ret < 0) ? usb_strerror() : NULL);
+  if (ret > 0) {
+    {
+      int i;
+
+      for (i=0; i<ret; i++) {
+	printf("%02x ", ctrl_cmd[i] & 0xff);
+      }
+      printf("\n");
+    }
+  }
+#endif
+
+  return (ret < 0) ? ret : 
+    timex_int_read(dev, buf, bufsize, TIMEXDR_CTRL_TIMEOUT);
+}
+
+/*
  * Sends a control message to the device.
  */
 static int timex_ctrl(usb_dev_handle *dev, char *ctrldata,  
@@ -263,6 +357,29 @@ static int timex_ctrl(usb_dev_handle *dev, char *ctrldata,
 
   return (ret < 0) ? ret : 
     timex_int_read(dev, buf, bufsize, TIMEXDR_CTRL_TIMEOUT);
+}
+
+/*
+ * Get the firmware version of the device's main microcontroller 
+ */
+static struct tdr_fw_ver get_fw_version(usb_dev_handle *dev) {
+  char buf[RESPONSE_BUFSIZE];
+  struct tdr_fw_ver fw;
+
+  if (!( timex_ctrl2(dev, FW_VERSION, MAIN_MICRO, buf, RESPONSE_BUFSIZE) == 7)) {
+    fatal("get_fw_version: Incorrect response size");
+  }
+  fw.main = DEC_FW_VER(buf[3], buf[4], buf[5]);
+
+  if (!( timex_ctrl2(dev, FW_VERSION, USB_MICRO, buf, RESPONSE_BUFSIZE) == 7)) {
+    fatal("get_fw_version: Incorrect response size");
+  }
+  fw.usb = DEC_FW_VER(buf[3], buf[4], buf[5]);
+  /*  (buf[5] >> 4) * 100000 + (buf[5] & 0x0F) * 10000 +
+    (buf[4] >> 4) * 1000 + (buf[4] & 0x0F) * 100 +
+    (buf[3] >> 4) * 10 + (buf[3] & 0x0F);
+  */
+  return fw;
 }
 
 /*
@@ -945,8 +1062,24 @@ int main(int argc, char *argv[])
   case 'd':
   case 'e':
     dev = timexdr_open();
-    i = timex_ctrl(dev, vendor_ctrl_1, buf, RESPONSE_BUFSIZE);
-    i = timex_ctrl(dev, vendor_ctrl_1, buf, RESPONSE_BUFSIZE);
+
+    firmware = get_fw_version(dev);
+#ifdef TDR_DEBUG
+    printf("Firmware version:\tMain:\t%u\n\t\t\tUSB:\t%u\n", 
+	   firmware.main, firmware.usb);
+#endif
+
+    i = timex_ctrl2(dev, EEPROM_CAPACITY, DEFAULT_MICRO, buf, RESPONSE_BUFSIZE);
+#ifdef TDR_DEBUG
+    printf("Memory capacity:\t%u bytes\n", 
+	   (long int) (buf[3] + (buf[4] << 8) + (buf[5] << 16)) + 1);
+#endif
+    i = timex_ctrl2(dev, EEPROM_USAGE, DEFAULT_MICRO, buf, RESPONSE_BUFSIZE);
+#ifdef TDR_DEBUG
+    printf("Memory used:    \t%u bytes\n", 
+	   (long int) (buf[3] + (buf[4] << 8) + (buf[5] << 16)) + 1);
+#endif
+
     i = timex_ctrl(dev, vendor_ctrl_2, buf, RESPONSE_BUFSIZE);
     bytes = eeprom_usage(dev);
 
@@ -954,6 +1087,9 @@ int main(int argc, char *argv[])
     printf("bytes: %u 0x%x\tpages: %u\n", bytes, bytes, 
 	   num_of_pages(bytes, EEPROM_PAGESIZE));
 #endif
+
+    timexdr_close(dev);
+    return 0;
 
     i = timex_ctrl(dev, vendor_ctrl_4, buf, RESPONSE_BUFSIZE);
     i = timex_ctrl(dev, vendor_ctrl_read_memory, buf, RESPONSE_BUFSIZE);
