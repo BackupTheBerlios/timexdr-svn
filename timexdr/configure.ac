@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(timexdr, 1.01, merka@highsphere.net)
+AC_INIT(timexdr, 1.10, merka@highsphere.net)
 AC_CONFIG_AUX_DIR(config)
 #AC_CONFIG_SRCDIR([src/timexdr.c])
 AC_CONFIG_SRCDIR([include/config.h.in])

@@ -77,7 +77,8 @@
 /*-------------------------------------------------------------------------*/
 
 #define TIMEXDR_VENDOR_ID      0x0cc2
-#define TIMEXDR_PRODUCT_ID     0xc700
+#define TIMEXDR_PRODUCT_ID1    0xc700
+#define TIMEXDR_PRODUCT_ID2    0xc701
 #define TIMEXDR_USAGE          0xffa00000
 
 #define TIMEXDR_EP             0x81

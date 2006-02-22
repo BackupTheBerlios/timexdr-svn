@@ -102,7 +102,8 @@ static int find_timexdr(struct usb_device *tdr) {
   for (bus = usb_busses; bus; bus = bus->next) {
     for (dev = bus->devices; dev; dev = dev->next) {
       if ((dev->descriptor.idVendor == TIMEXDR_VENDOR_ID) &&
-	  (dev->descriptor.idProduct == TIMEXDR_PRODUCT_ID)) {
+	  ((dev->descriptor.idProduct == TIMEXDR_PRODUCT_ID1) ||
+	   (dev->descriptor.idProduct == TIMEXDR_PRODUCT_ID2))) {
 	*tdr = *dev;
 	count++;
       }
@@ -111,6 +112,7 @@ static int find_timexdr(struct usb_device *tdr) {
   return count;
 }
 
+/* Maximum length of the vendor/product strings */
 #define DNAMELEN                50 
 
 /*
@@ -243,7 +245,7 @@ static void prepare_cmd(char cmdtype, char micro) {
 
   /* Report number */
   ctrl_cmd[0] = 0x01;
-  /* Most of the commands send 1 byte so this is a good default */
+  /* Most of the commands send only 1 byte so this is a good default */
   ctrl_cmd[2] = ENC_CMD_TYPE(cmdtype, n); 
 
   switch (cmdtype) {
