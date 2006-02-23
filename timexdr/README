@@ -20,6 +20,7 @@ usbfs has to be mounted (and of course compiled into the kernel).
 
 The installation steps:
 
+	./configure
 	make
 	make install
 
