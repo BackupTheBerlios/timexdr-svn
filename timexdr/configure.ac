@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(timexdr, 1.12, merka@highsphere.net)
+AC_INIT(timexdr, 1.13, merka@highsphere.net)
 AC_CONFIG_AUX_DIR(config)
 #AC_CONFIG_SRCDIR([src/timexdr.c])
 AC_CONFIG_SRCDIR([include/config.h.in])
@@ -49,7 +49,17 @@ case $host in
 	DARWIN_API=1
 	os_support=darwin
 	AC_MSG_RESULT(Darwin and/or MacOS 10)
-	OSLIBS="-Wl,-framework -Wl,IOKit -Wl,-framework -Wl,CoreFoundation -Wl,-prebind -no-undefined"
+	#OSLIBS="-Wl,-framework -Wl,IOKit -Wl,-framework -Wl,CoreFoundation"
+	OSLIBS=""
+
+        # It may be called "cc", but it's really a GCC derivative
+        # with a problematic special precompiler and precompiled
+        # headers; turn off the special precompiler, as some
+        # apparently-legal code won't compile with its precompiled
+        # headers.			
+	CFLAGS="-no-cpp-precomp $CFLAGS"
+	LIBS="$LIBS -framework IOKit -framework CoreFoundation"
+	AC_MSG_RESULT(Aplle GCC - added -no-cpp-precomp)
 	;;
   *)
 	AC_MSG_RESULT(unknown operating system)
@@ -77,12 +87,13 @@ fi
 # Checks for programs.
 AC_PROG_CC
 
-# Checks for libraries.
-AC_CHECK_LIB(usb,usb_find_busses)
-
 # Checks for header files.
 AC_HEADER_STDC
 AC_CHECK_HEADERS([stdlib.h string.h strings.h errno.h usb.h])
+
+# Checks for libraries.
+AC_CHECK_LIB([usb], [usb_init],,
+	     AC_MSG_ERROR(*** libusb required. Linking -lusb failed.))
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
