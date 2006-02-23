@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(timexdr, 1.10, merka@highsphere.net)
+AC_INIT(timexdr, 1.11, merka@highsphere.net)
 AC_CONFIG_AUX_DIR(config)
 #AC_CONFIG_SRCDIR([src/timexdr.c])
 AC_CONFIG_SRCDIR([include/config.h.in])
@@ -49,7 +49,7 @@ case $host in
 	DARWIN_API=1
 	os_support=darwin
 	AC_MSG_RESULT(Darwin and/or MacOS 10)
-	OSLIBS="-Wl,-framework -Wl,IOKit -Wl,-framework -Wl,CoreFoundation -Wl,-prebind"
+	OSLIBS="-Wl,-framework -Wl,IOKit -Wl,-framework -Wl,CoreFoundation -Wl,-prebind -no-undefined"
 	;;
   *)
 	AC_MSG_RESULT(unknown operating system)
