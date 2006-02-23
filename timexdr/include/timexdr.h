@@ -1,7 +1,7 @@
 /* 
  * Timex Data Recorder userspace control utility
  *
- * Copyright (C) 2005 Jan Merka <merka@highsphere.net>
+ * Copyright (C) 2005-2006 Jan Merka <merka@highsphere.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 #ifndef TDR_TIMEXDR_H
 #define TDR_TIMEXDR_H 1
 
-#define TDR_DEBUG 1
+//#define TDR_DEBUG 1
 
 /*-------------------------------------------------------------------------*/
 
@@ -102,10 +102,9 @@
 #define TIME_STEP_HRM                2     /* in seconds */
 #define TIME_STEP_GPS                3.57  /* in seconds */
 
-#define TIME_CHECKSUM             0xb9     /* for time synchronization */
+//#define TIME_CHECKSUM             0xb9     /* for time synchronization */
 
-#define TDR_ADDRESS(b0, b1, b2) \
-  ((b0) | ((b1) << 8) | ((b2) << 16)) 
+#define TDR_ADDRESS(b0, b1, b2)     ((b0) | ((b1) << 8) | ((b2) << 16)) 
 
 #define TDR_YR(yr)       (2000 + (yr))
 #define TDR_MD(md)       (1 + (md))
@@ -226,6 +225,10 @@ char ctrl_cmd[TIMEXDR_CTRL_SIZE] = {0x01, 0x0, 0x0, 0x0, 0x0,
 #define USB_MICRO       1
 #define MAIN_MICRO      2
 
+/* Return codes for control commands */
+#define CTRL_COMMAND_SUCCESS    0xfe
+#define CTRL_COMMAND_FAILURE    0x1
+
 /* Encode command type and number of bytes */
 #define ENC_CMD_TYPE(ct, nb)           (((ct) << 4) + (nb)) 
 
@@ -235,48 +238,8 @@ char ctrl_cmd[TIMEXDR_CTRL_SIZE] = {0x01, 0x0, 0x0, 0x0, 0x0,
    ((b4) >> 4)  * 1000   + ((b4) & 0x0F) * 100   +  \
    ((b3) >> 4)  * 10     + ((b3) & 0x0F))
 
-
-/* Vendor control commands */
-
-/* Get the firmware version of the device main microcontroller */
-/*char vendor_ctrl_fw_version[] = {0x01, 0xc3, 0x71, 0x8f, 0x11, 0x11, 
-			0x00, 0x00, 0x30, 0x1c};
-*/
-char vendor_ctrl_fw_version[] = {0x01, 0x83, 0x71, 0x8f, 0x0, 0x0, 
-			0x00, 0x00, 0x0, 0x0};
-
-char vendor_ctrl_2[] = {0x01, 0xc1, 0xf5, 0x20, 0xf0, 0xb1, 
-			0x01, 0x49, 0x55, 0x1f};
-/*char vendor_ctrl_last_address[] = {0x01, 0xc2, 0x01, 0xff, 0x11, 0x11, 
-				   0x00, 0x00, 0x30, 0x1c};
-*/
-char vendor_ctrl_last_address[] = {0x01, 0xc2, 0x01, 0xff, 0x0, 0x0, 
-				   0x00, 0x00, 0x0, 0x0};
-char vendor_ctrl_4[] = {0x01, 0xc3, 0xe1, 0x1f, 0x11, 0x11, 
-			0x00, 0x00, 0x30, 0x1c};
-/* The 8th and 10th bytes of the vendor_ctrl_read_memory control command 
- * vary but it does not seem to matter what values are actually used.
- */
-char vendor_ctrl_read_memory[] = { 0x1, 0xc2, 0x21, 0xdf, 0x0, 
-				   0x7c, 0x39, 0, 0x9, 0};
-/* I am not sure what this does but at least it causes the LED show a
- * re-assuring green light :) Without this command, LED blinks red after
- * unplugging the device from the USB port.
- */
-char vendor_ctrl_after_memread[] = {0x1, 0x40, 0x51, 0xaf, 0, 1, 0, 0, 0, 0};
-
-/* Set the device clock to the time specified in bytes 4-9, the purpose
- * of the 10th byte is unknown.
- */
-char vendor_ctrl_set_time[] = { 0x1, 0x40, 0x47, 0, 0, 0, 0, 0, 0, 0 };
-
-/* Clear EEPROM */
-char vendor_ctrl_clear_eeprom[] = { 0x1, 0x40, 0x11, 0xef, 0x11, 0x11, 
-				    0x0, 0x0, 0x30, 0x1c};
-
-/* Control command send when no session are stored in EEPROM */
-char vendor_ctrl_no_session[] = { 0x1, 0x40, 0x31, 0xcf, 0x0,
-				  0x7c, 0x39, 0, 0x9, 0};
+/* Decode the last used EEPROM address */
+#define DEC_EEPROM_USAGE(b2, b3, b4) ((((b2) & 0xf) << 16) | ((b4) << 8) | (b3)) 
 
 /* Data types */
 struct tdr_session; 
@@ -293,9 +256,12 @@ struct tdr_session {
   unsigned long int nbytes;
 };
 
-struct tdr_fw_ver {
-  long int main;
-  long int usb;
+struct tdr_info {
+  char vendor[TIMEXDR_STRLEN];
+  char product[TIMEXDR_STRLEN];
+  long int eeprom_size;
+  long int fw_main;
+  long int fw_usb;
 };
 
 /* Global settings */
@@ -305,6 +271,9 @@ time_t initial_time = 0;            /* Download only sessions newer than
 int write_session_to_file = 0;
 FILE *sfp;                          /* Session file pointer (stdout) */
 
-struct tdr_fw_ver firmware = {main:0, usb:0};
+int verbosity = 0;                  /* Verbosity level */
+
+struct tdr_info tdr_info = {vendor:"", product:"", 
+			    eeprom_size:0, fw_main:0, fw_usb:0};
 
 #endif /* TDR_TIMEXDR_H */

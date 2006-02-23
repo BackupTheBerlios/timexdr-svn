@@ -1,4 +1,4 @@
-.TH TIMEXDR 1 "14 April 2005"
+.TH TIMEXDR 1 "22 February 2006"
 .SH NAME
 TIMEXDR \- Timex Data Recorder control program
 .SH SYNOPSIS
@@ -44,6 +44,15 @@ units are kilometers and kph.
 .TP
 .B \-t, --time-sync
 Synchronize device's clock with system local time.
+.TP
+.B \-v NUM, --verbose=NUM
+Increase the verbosity of program output for higher NUM. Roughly speaking, 
+NUM<5 provides more information about the program actions then without this
+option, while higher NUM values show also some debugging information. If NUM 
+is ommitted, value 1 is assumed.
+.TP
+.B \-V, --version
+Print the program version information and exit.
 .SH EXAMPLES
 .PP
 For all examples below, it will be assumed that the Timex Data Recorder

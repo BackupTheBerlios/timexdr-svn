@@ -1,7 +1,7 @@
 /* 
  * Timex Data Recorder userspace control utility
  *
- * Copyright (C) 2005 Jan Merka <merka@highsphere.net>
+ * Copyright (C) 2005-2006 Jan Merka <merka@highsphere.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -67,7 +67,7 @@ static void timexdr_usage(const char *program) {
 	  "\nCommands:\n"
 	  "  -a, --all-sessions\tPrint all sessions.\n"
 	  "  -c, --clear-eeprom\tClear the EEPROM memory (delete all stored sessions).\n"
-	  "  -d NUM, --days=NUM\tPrint sessions recorded within the last NUM days.\n"
+	  "  -dNUM, --days=NUM\tPrint sessions recorded within the last NUM days.\n"
 	  "\t\t\tIf NUM is omitted or zero, today's sessions are printed.\n"
 	  "  -e, --eeprom-dump\tDump the content of EEPROM (for debugging).\n"
 	  "  -f, --file\t\tCreate file(s) YYYYMMDD_HHMMSS-HHMMSS.{gps,hrm} for the\n"
@@ -76,6 +76,11 @@ static void timexdr_usage(const char *program) {
 	  "  -m, --miles\t\tShow distance and speed in miles and mph, respectively.\n"
 	  "\t\t\tThe default units are kilometers and kph.\n"
 	  "  -t, --time-sync\tSynchronize device's clock with system local time.\n"
+	  "  -vNUM, --verbose=NUM\tIncrease the verbosity of program output for higher\n"
+	  "\t\t\tNUM. Roughly, NUM<5 provides more information about\n"
+	  "\t\t\tthe current action, higher NUM values show also some\n"
+	  "\t\t\tdebugging information. If NUM is ommitted, value 1 is\n"
+	  "\t\t\tassumed.\n"
 	  "  -V, --version\t\tPrint version information and exit.\n", 
 	  program);
 
@@ -112,7 +117,7 @@ static int find_timexdr(struct usb_device *tdr) {
   return count;
 }
 
-/* Maximum length of the vendor/product strings */
+/* Maximum length of the device name string */
 #define DNAMELEN                50 
 
 /*
@@ -121,7 +126,6 @@ static int find_timexdr(struct usb_device *tdr) {
 static usb_dev_handle *timexdr_open(void) {
   struct usb_dev_handle *udev;
   struct usb_device *dev;
-  char vend_name[TIMEXDR_STRLEN], prod_name[TIMEXDR_STRLEN];
   char dname[DNAMELEN];
   int count, ret;
 
@@ -136,42 +140,46 @@ static usb_dev_handle *timexdr_open(void) {
     fatal("Device not found. Check the connection");
   }
 
-#ifdef TDR_DEBUG
-  printf("Found %d device(s).\n", count);
-#endif
+  if (verbosity > 5) printf("Found %d device(s).\n", count);
 
   if ((udev = usb_open(dev))) {
 
-    ret = usb_get_string_simple(udev, TIMEXDR_STR_VENDOR, vend_name, 
-				sizeof(vend_name));
-    ret = usb_get_string_simple(udev, TIMEXDR_STR_PRODUCT, prod_name, 
-				sizeof(prod_name));
+    ret = usb_get_string_simple(udev, TIMEXDR_STR_VENDOR, tdr_info.vendor, 
+				sizeof(tdr_info.vendor));
+    ret = usb_get_string_simple(udev, TIMEXDR_STR_PRODUCT, tdr_info.product, 
+				sizeof(tdr_info.product));
 
-#ifdef TDR_DEBUG
-    printf("Vendor:  [0x%04x] %s\nProduct: [0x%04x] %s\n", 
-	   dev->descriptor.idVendor, vend_name, 
-	   dev->descriptor.idProduct, prod_name);
-#endif
+    if (verbosity) {
+      printf("Vendor:  [0x%04x] %s\nProduct: [0x%04x] %s\n", 
+	     dev->descriptor.idVendor, tdr_info.vendor, 
+	     dev->descriptor.idProduct, tdr_info.product);
+    }
 
 /* This started causing problems (fails every time) some time between the 
  * release of timexdr 1.0 and February 2006. Probably due to changes in 
  * kernel usb drivers. On the other hand, it doesn't appear to be necessary
  * anymore
-    if ( usb_set_configuration(udev, TIMEXDR_CONFIG) < 0 ) {
-      fatal("Couldn't set configuration");
-      }
+ */
+/*    if ( usb_set_configuration(udev, TIMEXDR_CONFIG) < 0 ) {
+ *     fatal("Couldn't set configuration");
+ *     }
  */
 
 /* Non-portable Linux-only code */
-#ifdef LIBUSB_HAS_GET_DRIVER_NP
+#if defined(LIBUSB_HAS_GET_DRIVER_NP) && defined (LIBUSB_HAS_DETACH_KERNEL_DRIVER_NP)
     if ( usb_get_driver_np(udev, TIMEXDR_INTERFACE, dname, DNAMELEN) == 0 ) {
       if ( usb_detach_kernel_driver_np(udev, TIMEXDR_INTERFACE) < 0 ) {
-	fprintf(stderr, "Couldn't detach kernel driver %s (%m).\n", dname);
+	fprintf(stderr, "Couldn't detach kernel driver %s (%s).\n", dname, 
+		usb_strerror());
 	exit(EXIT_FAILURE);
-      } 
+      }
     } /* Don't stop here if usb_get_driver_np fails because that only 
 	 means there is no kernel driver to be detached */
 #endif
+
+    if ( usb_set_configuration(udev, TIMEXDR_CONFIG) < 0 ) {
+      fatal("Couldn't set configuration");
+      }
 
     if ( usb_claim_interface(udev, TIMEXDR_INTERFACE) < 0 ) {
       fatal("Couldn't claim interface");
@@ -193,16 +201,15 @@ static void timexdr_close(usb_dev_handle *dev) {
   if ( (ret = usb_release_interface(dev, 0)) < 0 ) {
     fatal("Couldn't release device");
   }
-#ifdef TDR_DEBUG
-  printf("release interface: %d\n", ret);
-#endif
+  if (verbosity > 5) printf("Release interface status: %d\n", ret);
+
   usb_close(dev);
 }
 
 /*
  * Interrupt read from the device
  */
-static int timex_int_read(usb_dev_handle *dev, char *buf, int size, 
+static int timex_int_read(usb_dev_handle *dev, unsigned char *buf, int size, 
 			  int timeout) {
   int ret;
 
@@ -218,25 +225,45 @@ static int timex_int_read(usb_dev_handle *dev, char *buf, int size,
     fatal("Interrupt read timeout");
   } 
 
-#ifdef TDR_DEBUG
-  printf("timex_int_read: %d bytes transferred\n\t", ret);
-  {
-    int i;
-
-    for (i=0; (ret<10) && (i<ret); i++) {
-      printf("%02x ", buf[i] & 0xff);
+  if ((verbosity > 5) && (ret <= TIMEXDR_CTRL_SIZE)) {
+    printf("Received: \t", ret);
+    {
+      int i;
+      
+      for (i=0; (ret<10) && (i<ret); i++) {
+	printf("%02x ", buf[i] & 0xff);
+      }
+      printf("\n");
     }
-    printf("\n");
   }
-#endif
 
   return ret;
 }
 
 /*
+ * Check the response to a control command for command failure or command type
+ * mismatch.
+ */
+static void check_response(char cmdtype, unsigned char *buf) {
+  if ((buf[1] & 0xff) != CTRL_COMMAND_SUCCESS) {
+    fprintf(stderr, "Error: Control command %u failed with code %02x.\n", 
+	    cmdtype, buf[1] & 0xff);
+    exit(EXIT_FAILURE);
+  }
+  if (((buf[2] & 0xff) >> 4) != cmdtype) {
+    fprintf(stderr, "Error: Return message command type mismatch.\n");
+    fprintf(stderr, "Error: Sent command %u, received response from command %u.\n", 
+	    cmdtype, (buf[2] & 0xff) >> 4);
+    exit(EXIT_FAILURE);
+  }
+}
+
+/*
  * Prepare the control command (output report) to be sent to the device
  * Inputs: cmdtype - specify command type as defined in the header file
- *         micro - optional, specify which microcontroller is the recipient
+ *         micro - optional, specify which microcontroller is the recipient. 
+ *                 If cmdtype=MODIFY_BOND_OPTION, then micro contains the settings
+ *                 data that will be passed to the device.
  */
 
 static void prepare_cmd(char cmdtype, char micro) {
@@ -256,19 +283,62 @@ static void prepare_cmd(char cmdtype, char micro) {
   case UPLOAD_CANCEL:
   case UPLOAD_DONE:
   case SW_TIMEOUT:
+  case EEPROM_TEST:
+  case RESTORE_BOND_OPTION:
     /* Command 0x40 */
     ctrl_cmd[1] = CMD_EEPROM_CLEAR;
     break;
   case DATA_UPLOAD:
     ctrl_cmd[1] = CMD_DATA_UPLOAD;
     break;
+  case SYNC_TIME:
+    /* Synchronize device's clock with PC (use localtime) */
+    ctrl_cmd[1] = CMD_SYNC_TIME;
+    n = 7;   // Send 7 bytes
+    {
+      struct tm *sys_time;
+      time_t tp;
+
+      tp = time(NULL);
+      sys_time = localtime(&tp);
+      
+      ctrl_cmd[2] = ENC_CMD_TYPE(cmdtype, n);
+      ctrl_cmd[3] = (char) sys_time->tm_sec;
+      ctrl_cmd[4] = (char) sys_time->tm_min;
+      ctrl_cmd[5] = (char) sys_time->tm_hour;
+      ctrl_cmd[6] = (char) (sys_time->tm_mday - 1);
+      ctrl_cmd[7] = (char) sys_time->tm_mon;
+      ctrl_cmd[8] = (char) (sys_time->tm_year - 100);
+      cs = ctrl_cmd[3] + ctrl_cmd[4] + ctrl_cmd[5] 
+	+ ctrl_cmd[6] + ctrl_cmd[7] + ctrl_cmd[8] ;
+    }
+    break;
   case FW_VERSION:
     /* Default microcontroller is MAIN_MICRO */
     ctrl_cmd[1] = (micro == USB_MICRO) ? 
       CMD_FW_VERSION_USB_MICRO : CMD_FW_VERSION_MAIN_MICRO;
     break;
+  case ROM_TEST:
+  case RAM_TEST:
+    ctrl_cmd[1] = (micro == USB_MICRO) ?
+      CMD_ROM_TEST_USB_MICRO : CMD_ROM_TEST_MAIN_MICRO;
+    break;
+  case READ_BOND_OPTION:
+    ctrl_cmd[1] = CMD_READ_BOND_OPTION;
+    break;
+  case MODIFY_BOND_OPTION:
+    /* Note that micro contains the data to pass to the device */
+    n = 2;                      // bytes to send
+    ctrl_cmd[1] = CMD_MODIFY_BOND_OPTION;
+    ctrl_cmd[2] = ENC_CMD_TYPE(cmdtype, n);
+    ctrl_cmd[3] = 3 + micro;    // first two bits must be set
+    cs += ctrl_cmd[3];
+    break;
   case EEPROM_CAPACITY:
     ctrl_cmd[1] = CMD_EEPROM_CAPACITY;
+    break;
+  case RAM_ROM_DEBUG:
+    ctrl_cmd[1] = CMD_RAM_ROM_DEBUG;
     break;
   default:
     fatal("prepare_cmd: Unknown command type");
@@ -276,7 +346,7 @@ static void prepare_cmd(char cmdtype, char micro) {
   }
 
   /* Calculate the checksum */
-  cs =+ (int) ctrl_cmd[2];
+  cs += (int) ctrl_cmd[2];
   ctrl_cmd[n+2] = ( ~cs + 1 ) % 256;
 
   /* Fill up the rest of ctrl_cmd with zeros */
@@ -292,8 +362,8 @@ static void prepare_cmd(char cmdtype, char micro) {
 /*
  * Sends a control message of cmdtype to the device's microcontroller micro.
  */
-static int timex_ctrl2(usb_dev_handle *dev, char cmdtype, char micro,  
-		      char *buf, int bufsize) {
+static int timex_ctrl(usb_dev_handle *dev, char cmdtype, char micro,  
+		      unsigned char *buf, int bufsize) {
   int ret;
 
   /* Prepare the control message (output report) */
@@ -308,105 +378,67 @@ static int timex_ctrl2(usb_dev_handle *dev, char cmdtype, char micro,
 			ctrl_cmd, 
 			TIMEXDR_CTRL_SIZE, 
 			TIMEXDR_CTRL_TIMEOUT);
-#ifdef TDR_DEBUG
-  printf("---\ntimex_ctrl: %d bytes transferred (%s)\n\t", ret,  
-	 (ret < 0) ? usb_strerror() : NULL);
-  if (ret > 0) {
-    {
-      int i;
-
-      for (i=0; i<ret; i++) {
-	printf("%02x ", ctrl_cmd[i] & 0xff);
+  if (verbosity > 5) {
+    printf("Cmd sent:\t", ret,  
+	   (ret < 0) ? usb_strerror() : NULL);
+    if (ret > 0) {
+      {
+	int i;
+	
+	for (i=0; i<ret; i++) {
+	  printf("%02x ", ctrl_cmd[i] & 0xff);
+	}
+	printf("\n");
       }
-      printf("\n");
     }
   }
-#endif
 
-  return (ret < 0) ? ret : 
-    timex_int_read(dev, buf, bufsize, TIMEXDR_CTRL_TIMEOUT);
-}
-
-/*
- * Sends a control message to the device.
- */
-static int timex_ctrl(usb_dev_handle *dev, char *ctrldata,  
-		      char *buf, int bufsize) {
-  int ret;
-
-  ret = usb_control_msg(dev, 
-			USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE, 
-			USB_REQ_SET_CONFIGURATION, 
-			0x201, 
-			0, 
-			ctrldata, 
-			TIMEXDR_CTRL_SIZE, 
-			TIMEXDR_CTRL_TIMEOUT);
-#ifdef TDR_DEBUG
-  printf("---\ntimex_ctrl: %d bytes transferred (%s)\n\t", ret,  
-	 (ret < 0) ? usb_strerror() : NULL);
-  if (ret > 0) {
-    {
-      int i;
-
-      for (i=0; i<ret; i++) {
-	printf("%02x ", ctrldata[i] & 0xff);
-      }
-      printf("\n");
+  if (ret == TIMEXDR_CTRL_SIZE) {
+    if ((ret = timex_int_read(dev, buf, bufsize, TIMEXDR_CTRL_TIMEOUT)) != 7) {
+      fprintf(stderr, "Error: Expected response size 7 bytes, received %i.\n", 
+	      ret);
+      exit(EXIT_FAILURE);
     }
+    check_response(cmdtype, buf);
+  } else {
+    fprintf(stderr, "Error: Sent only %i of %i bytes.\n", ret, TIMEXDR_CTRL_SIZE);
+    exit(EXIT_FAILURE);
   }
-#endif
 
-  return (ret < 0) ? ret : 
-    timex_int_read(dev, buf, bufsize, TIMEXDR_CTRL_TIMEOUT);
+  return ret;
 }
 
 /*
- * Get the firmware version of the device's main microcontroller 
+ * Get the firmware version of the device's main microcontroller and write it
+ * into the global variable tdr_info
  */
-static struct tdr_fw_ver get_fw_version(usb_dev_handle *dev) {
-  char buf[RESPONSE_BUFSIZE];
-  struct tdr_fw_ver fw;
+static void get_fw_version(usb_dev_handle *dev) {
+  unsigned char buf[RESPONSE_BUFSIZE];
 
-  if (!( timex_ctrl2(dev, FW_VERSION, MAIN_MICRO, buf, RESPONSE_BUFSIZE) == 7)) {
-    fatal("get_fw_version: Incorrect response size");
+  if (timex_ctrl(dev, FW_VERSION, MAIN_MICRO, buf, RESPONSE_BUFSIZE)) {
+    tdr_info.fw_main = DEC_FW_VER(buf[3], buf[4], buf[5]);
   }
-  fw.main = DEC_FW_VER(buf[3], buf[4], buf[5]);
+  if (timex_ctrl(dev, FW_VERSION, USB_MICRO, buf, RESPONSE_BUFSIZE)) {
+    tdr_info.fw_usb = DEC_FW_VER(buf[3], buf[4], buf[5]);
+  }
 
-  if (!( timex_ctrl2(dev, FW_VERSION, USB_MICRO, buf, RESPONSE_BUFSIZE) == 7)) {
-    fatal("get_fw_version: Incorrect response size");
-  }
-  fw.usb = DEC_FW_VER(buf[3], buf[4], buf[5]);
-  /*  (buf[5] >> 4) * 100000 + (buf[5] & 0x0F) * 10000 +
-    (buf[4] >> 4) * 1000 + (buf[4] & 0x0F) * 100 +
-    (buf[3] >> 4) * 10 + (buf[3] & 0x0F);
-  */
-  return fw;
+  if (verbosity) printf("Firmware version:\tMain:\t%u\n\t\t\tUSB:\t%u\n", 
+			tdr_info.fw_main, tdr_info.fw_usb);
 }
 
 /*
- * Synchronize device's clock with PC (use localtime)
+ * Get the EEPROM size and write it into the global variable tdr_info
  */
-static int timex_sync_time(usb_dev_handle *dev, char *buf, int bufsize) {
-  struct tm *sys_time;
-  time_t tp;
+static void get_eeprom_size(usb_dev_handle *dev) {
+  unsigned char buf[RESPONSE_BUFSIZE];
 
-  tp = time(NULL);
-  sys_time = localtime(&tp);
+  if (timex_ctrl(dev, EEPROM_CAPACITY, DEFAULT_MICRO, buf, RESPONSE_BUFSIZE)) {
+    tdr_info.eeprom_size = (long int) (buf[3] + (buf[4] << 8) + 
+				       (buf[5] << 16)) + 1;
+  }
 
-  vendor_ctrl_set_time[3] = (char) sys_time->tm_sec;
-  vendor_ctrl_set_time[4] = (char) sys_time->tm_min;
-  vendor_ctrl_set_time[5] = (char) sys_time->tm_hour;
-  vendor_ctrl_set_time[6] = (char) (sys_time->tm_mday - 1);
-  vendor_ctrl_set_time[7] = (char) sys_time->tm_mon;
-  vendor_ctrl_set_time[8] = (char) (sys_time->tm_year - 100);
-  vendor_ctrl_set_time[9] = TIME_CHECKSUM - (
-    vendor_ctrl_set_time[3] + vendor_ctrl_set_time[4] +
-    vendor_ctrl_set_time[5] + vendor_ctrl_set_time[6] +
-    vendor_ctrl_set_time[7] + vendor_ctrl_set_time[8] );
-  //printf("checksum: 0x%x\n", vendor_ctrl_set_time[9]);
-  
-  return timex_ctrl(dev, vendor_ctrl_set_time, buf, bufsize);
+  if (verbosity) printf("EEPROM size:\t%u bytes (%u kB)\n", 
+			tdr_info.eeprom_size, tdr_info.eeprom_size/1024);
 }
 
 /*
@@ -456,9 +488,10 @@ static unsigned long int num_of_pages(const unsigned long int bytes,
     + ( (bytes % psize) == 0 ? 0 : 1);
 }
 
-/* Find how many bytes are used in the TDR's EEPROM for data. Note that
+/* 
+ * Find how many bytes are used in the TDR's EEPROM for data. Note that
  * the address of last byte as returned by the control command is NOT the
- * total number of bytes used because there is an extra byte 0x02 at the 
+ * total number of bytes transferred because there is an extra byte 0x02 at the 
  * beginning of each 255 bytes of data.
  */
 static long int eeprom_usage(usb_dev_handle *dev) {
@@ -466,13 +499,13 @@ static long int eeprom_usage(usb_dev_handle *dev) {
   unsigned long int bytes;
   int ret;
 
-  ret = timex_ctrl(dev, vendor_ctrl_last_address, buf, RESPONSE_BUFSIZE);
-  if (!(ret == 7)) {
-    printf("get_mem_usage: response size = %d\n", ret);
-    fatal("get_mem_usage: Incorrect response size");
-  }
+  ret = timex_ctrl(dev, EEPROM_USAGE, DEFAULT_MICRO, buf, RESPONSE_BUFSIZE);
+  bytes = DEC_EEPROM_USAGE(buf[2], buf[3], buf[4]);
 
-  bytes = TDR_ADDRESS(buf[3], buf[4], buf[5]);
+  if (verbosity) {
+    printf("EEPROM used:\t%u bytes (%u%% in use)\n", bytes + 1, 
+	   (bytes + 1)*100/tdr_info.eeprom_size);
+  }
 
   return bytes + num_of_pages(bytes, DATA_PAGESIZE);
 }
@@ -659,9 +692,7 @@ static void open_session_file(char *sname,
 	    hdr->year, hdr->month, hdr->day, hdr->hour, hdr->min, hdr->sec,
 	    ftr->hour, ftr->min, ftr->sec, sname);
   
-#ifdef TDR_DEBUG
-    printf("file name: %s\tsession: %s\n", s,sname);
-#endif
+    if (verbosity) printf("file name: %s\tsession: %s\n", s,sname);
 
     if ((sfp = fopen(s, "w")) == NULL) {
       fprintf(stderr, "%s: Can't open session file %s (%m).\n", progname, s);
@@ -676,9 +707,7 @@ static void open_session_file(char *sname,
  * Close the output session file
  */
 static void close_session_file(void) {
-  if (write_session_to_file) {
-    fclose(sfp);
-  } 
+  if (write_session_to_file) fclose(sfp);
 }
 
 /*
@@ -994,15 +1023,20 @@ int main(int argc, char *argv[])
     {"help",  0, NULL, 'h'},
     {"miles", 0, NULL, 'm'},
     {"time-sync", 0, NULL, 't'},
+    {"verbose", 2, NULL, 'v'},          /* Takes an optional argument */
     {"version", 0, NULL, 'V'},
     {NULL, 0, NULL, 0}
   };
+
+#ifdef TDR_DEBUG
+  verbosity = 10;
+#endif
   
   progname = argv[0];
   //  sfp = stdout;
 
   while (1) {
-    c = getopt_long(argc, argv, "acd::efhmtV",
+    c = getopt_long(argc, argv, "acd::efhmtv::V",
 		    long_options, NULL);
 
     if (c == -1) {
@@ -1040,11 +1074,18 @@ int main(int argc, char *argv[])
 
     case 't':
       dev = timexdr_open();
-      if (timex_sync_time(dev, buf, RESPONSE_BUFSIZE) < 0) {
-	fatal("Time synchronization failed");
-      }
+      i = timex_ctrl(dev, SYNC_TIME, 0, buf, RESPONSE_BUFSIZE);
       timexdr_close(dev);
       if (choice == 'h') choice = '\0';
+      break;
+
+    case 'v':
+      if (optarg) {
+	verbosity = atol(optarg);
+      } else {
+	verbosity = 1;
+      }
+      if (choice == 'v') choice = '\0';
       break;
 
     case 'V':
@@ -1065,59 +1106,48 @@ int main(int argc, char *argv[])
   case 'e':
     dev = timexdr_open();
 
-    firmware = get_fw_version(dev);
-#ifdef TDR_DEBUG
-    printf("Firmware version:\tMain:\t%u\n\t\t\tUSB:\t%u\n", 
-	   firmware.main, firmware.usb);
-#endif
+    get_fw_version(dev);
+    get_eeprom_size(dev);
 
-    i = timex_ctrl2(dev, EEPROM_CAPACITY, DEFAULT_MICRO, buf, RESPONSE_BUFSIZE);
-#ifdef TDR_DEBUG
-    printf("Memory capacity:\t%u bytes\n", 
-	   (long int) (buf[3] + (buf[4] << 8) + (buf[5] << 16)) + 1);
-#endif
-    i = timex_ctrl2(dev, EEPROM_USAGE, DEFAULT_MICRO, buf, RESPONSE_BUFSIZE);
-#ifdef TDR_DEBUG
-    printf("Memory used:    \t%u bytes\n", 
-	   (long int) (buf[3] + (buf[4] << 8) + (buf[5] << 16)) + 1);
-#endif
-
-    i = timex_ctrl(dev, vendor_ctrl_2, buf, RESPONSE_BUFSIZE);
     bytes = eeprom_usage(dev);
 
-#ifdef TDR_DEBUG
-    printf("bytes: %u 0x%x\tpages: %u\n", bytes, bytes, 
-	   num_of_pages(bytes, EEPROM_PAGESIZE));
-#endif
+    if (verbosity >= 3) {
+      printf("Expecting a transfer of %u (0x%x) bytes in %u packets\n", 
+	     bytes, bytes, num_of_pages(bytes, EEPROM_PAGESIZE));
+    }
 
-    timexdr_close(dev);
-    return 0;
+    i = timex_ctrl(dev, DATA_UPLOAD, DEFAULT_MICRO, buf, RESPONSE_BUFSIZE);
 
-    i = timex_ctrl(dev, vendor_ctrl_4, buf, RESPONSE_BUFSIZE);
-    i = timex_ctrl(dev, vendor_ctrl_read_memory, buf, RESPONSE_BUFSIZE);
-
-    if ((bytes == (TIMEXDR_ATABLESIZE + 
-		   num_of_pages(bytes, EEPROM_PAGESIZE))) && 
-	timex_ctrl(dev, vendor_ctrl_no_session, buf, RESPONSE_BUFSIZE)) {
+    if ((bytes == (TIMEXDR_ATABLESIZE + num_of_pages(bytes, EEPROM_PAGESIZE))) && 
+	timex_ctrl(dev, UPLOAD_CANCEL, DEFAULT_MICRO, buf, RESPONSE_BUFSIZE)) {
       fprintf(stderr, "EEPROM empty.\n");
-      exit(EXIT_FAILURE);
+      timexdr_close(dev);
+      exit(EXIT_SUCCESS);
     }
 
     bufsize = EEPROM_PAGESIZE * num_of_pages(bytes, EEPROM_PAGESIZE); 
-    databuf = (char *)calloc(bufsize, sizeof(char));
+    databuf = (unsigned char *)calloc(bufsize, sizeof(unsigned char));
     if (databuf == 0) fatal("databuf not initialized");
    
     /* The timeout may be unnecessary long but that is better than too short.
      * This way we make sure that all data get tranferred.
      */
-    timeout = (bytes / 2048 + 1) * 20 * TIMEXDR_CTRL_TIMEOUT;
+    timeout = (bytes / 2048 + 1) * 10 * TIMEXDR_CTRL_TIMEOUT;
 
-#ifdef TDR_DEBUG
-    printf("timeout: %d ms\n", timeout);
-#endif
+    if (verbosity > 3) printf("Data download will take up to %d seconds\n", 
+			      timeout/1000);
 
-    i = timex_int_read(dev, databuf, bufsize, timeout);
-    i = timex_ctrl(dev, vendor_ctrl_after_memread, buf, RESPONSE_BUFSIZE);
+    {
+      time_t t0, t1;
+
+      t0 = time(NULL);
+      i = timex_int_read(dev, databuf, bufsize, timeout);
+      t1 = time(NULL);
+      
+      if (verbosity) printf("Data transfer time was %d seconds\n", t1-t0);
+    }
+    
+    i = timex_ctrl(dev, UPLOAD_DONE, DEFAULT_MICRO, buf, RESPONSE_BUFSIZE);
     
     switch (choice) {
     case 'e': 
@@ -1149,7 +1179,7 @@ int main(int argc, char *argv[])
    */
   if (clear_eeprom) {
     dev = timexdr_open();
-    i = timex_ctrl(dev, vendor_ctrl_clear_eeprom, buf, RESPONSE_BUFSIZE);
+    i = timex_ctrl(dev, EEPROM_CLEAR, DEFAULT_MICRO, buf, RESPONSE_BUFSIZE);
     timexdr_close(dev);
   }
 

@@ -1,3 +1,14 @@
+2006-02-22  Jan Merka <merka@highsphere.net>
+	* Moved the installation process from using plain Makefile to
+	autotools (autoconf, automake,...)
+	* Rewritten the code due to improved understanding of the Timex
+	Data Recorder control commands
+	* Better reporting of several verbosity levels, new command line
+	option -v|--verbose.
+	* Added command line option -V|--version.
+	* Modified to install and work on Darwin or MacOS 10.
+	* Bumped to version 1.10.
+
 Version 1.0
 -----------
 	- Added options -d and -f: The former option enables download of
