@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(timexdr, 1.11, merka@highsphere.net)
+AC_INIT(timexdr, 1.12, merka@highsphere.net)
 AC_CONFIG_AUX_DIR(config)
 #AC_CONFIG_SRCDIR([src/timexdr.c])
 AC_CONFIG_SRCDIR([include/config.h.in])
@@ -66,6 +66,13 @@ AM_CONDITIONAL(BSD_API, test "$os_support" = "bsd")
 AM_CONDITIONAL(DARWIN_API, test "$os_support" = "darwin")
 
 AC_SUBST(OSLIBS)
+
+# Declare --enable-* args and collect ac_help strings
+AC_ARG_ENABLE(static, [  --enable-static         build a statically linked executable],,enable_static=no)
+
+if test "x$enable_static" = "xyes"; then
+	CFLAGS="$CFLAGS -static"
+fi
 
 # Checks for programs.
 AC_PROG_CC

@@ -155,16 +155,6 @@ static usb_dev_handle *timexdr_open(void) {
 	     dev->descriptor.idProduct, tdr_info.product);
     }
 
-/* This started causing problems (fails every time) some time between the 
- * release of timexdr 1.0 and February 2006. Probably due to changes in 
- * kernel usb drivers. On the other hand, it doesn't appear to be necessary
- * anymore
- */
-/*    if ( usb_set_configuration(udev, TIMEXDR_CONFIG) < 0 ) {
- *     fatal("Couldn't set configuration");
- *     }
- */
-
 /* Non-portable Linux-only code */
 #if defined(LIBUSB_HAS_GET_DRIVER_NP) && defined (LIBUSB_HAS_DETACH_KERNEL_DRIVER_NP)
     if ( usb_get_driver_np(udev, TIMEXDR_INTERFACE, dname, DNAMELEN) == 0 ) {
