@@ -493,7 +493,7 @@ static long int eeprom_usage(usb_dev_handle *dev) {
   bytes = DEC_EEPROM_USAGE(buf[2], buf[3], buf[4]);
 
   if (verbosity) {
-    printf("EEPROM used:\t%u bytes (%u%% in use)\n", bytes + 1, 
+    printf("EEPROM used:\t%u bytes (%u%% in use)\n", bytes, 
 	   (bytes + 1)*100/tdr_info.eeprom_size);
   }
 
@@ -503,13 +503,19 @@ static long int eeprom_usage(usb_dev_handle *dev) {
 /*
  * Dumps the EEPROM to stdout.
  */
-static void print_eeprom(unsigned char *buf, unsigned long int pages) {
-  unsigned long int i;
+static void print_eeprom(unsigned char *buf, unsigned long int bytes) {
+  unsigned long int i, pages;
+
+  pages = num_of_pages(bytes, EEPROM_PAGESIZE);
 
   for (i=0; i < (pages*EEPROM_PAGESIZE); i++) {
     if ((i>0) && ((i % EEPROM_PAGESIZE) == 0)) printf("\n");
     if ((i % 16) == 0) printf("\n%08lx:\t", i);
-    printf("%02x ", buf[i] & 0xff);	
+    if (i < bytes) {
+      printf("%02x ", buf[i] & 0xff);
+    } else {
+      printf("00 ");
+    }
   }
   printf("\n");
 }
@@ -518,12 +524,12 @@ static void print_eeprom(unsigned char *buf, unsigned long int pages) {
  * Removes transfer control/status bytes from the received EEPROM data.
  */
 static void squeeze_data(unsigned char *databuf, 
-			 unsigned long int bytes) {
+			 unsigned long int *bytes) {
   unsigned char *newbuf, *pnew, *pold;
-  unsigned long int newbytes, bleft = bytes, i, pages;
+  unsigned long int newbytes, bleft = *bytes, i, pages;
   
-  pages = num_of_pages(bytes, EEPROM_PAGESIZE);
-  newbytes = bytes - pages;
+  pages = num_of_pages(*bytes, EEPROM_PAGESIZE);
+  newbytes = *bytes - pages;
 
   if (!(newbuf = malloc(newbytes))) {
     fatal("Couldn't allocate memory");
@@ -544,7 +550,7 @@ static void squeeze_data(unsigned char *databuf,
 
   free(newbuf);
 
-  bytes = newbytes;
+  *bytes = newbytes;
 }
 
 /*
@@ -999,16 +1005,16 @@ static void print_session(const struct tdr_session *session) {
 int main(int argc, char *argv[])
 {
   struct usb_dev_handle *dev;
-  int i, clear_eeprom=0;
+  int i, clear_eeprom=0, full_eeprom_listing=0;
   unsigned long int bytes, bufsize, timeout;
   unsigned char buf[RESPONSE_BUFSIZE], *databuf;
-  char c, choice='h';
+  char c, choice='h';                   /* Default choice='h' */
   struct tdr_session  *session;
   static struct option long_options[] = {
     {"all-sessions", 0, NULL, 'a'},
     {"clear-eeprom", 0, NULL, 'c'},
     {"days", 2, NULL, 'd'},             /* Takes an optional argument */
-    {"eeprom-dump", 0, NULL, 'e'},
+    {"eeprom-dump", 2, NULL, 'e'},
     {"file", 0, NULL, 'f'},
     {"help",  0, NULL, 'h'},
     {"miles", 0, NULL, 'm'},
@@ -1026,7 +1032,7 @@ int main(int argc, char *argv[])
   //  sfp = stdout;
 
   while (1) {
-    c = getopt_long(argc, argv, "acd::efhmtv::V",
+    c = getopt_long(argc, argv, "acd::e::fhmtv::V",
 		    long_options, NULL);
 
     if (c == -1) {
@@ -1035,7 +1041,13 @@ int main(int argc, char *argv[])
     
     switch (c) {
     case 'a':
+      choice = c;
+      break;
+
     case 'e':
+      if (optarg) {
+	if (strcmp(optarg, "full") == 0) full_eeprom_listing = 1;
+      }
       choice = c;
       break;
 
@@ -1127,6 +1139,7 @@ int main(int argc, char *argv[])
     if (verbosity > 3) printf("Data download will take up to %d seconds\n", 
 			      timeout/1000);
 
+    /* Read the data from the recorder */
     {
       time_t t0, t1;
 
@@ -1138,14 +1151,16 @@ int main(int argc, char *argv[])
     }
     
     i = timex_ctrl(dev, UPLOAD_DONE, DEFAULT_MICRO, buf, RESPONSE_BUFSIZE);
-    
+
+    /* Format the output as specified by the command line options */
     switch (choice) {
     case 'e': 
-      print_eeprom(databuf, num_of_pages(bytes, EEPROM_PAGESIZE));
+      if (full_eeprom_listing == 0) squeeze_data(databuf, &bytes);
+      print_eeprom(databuf, bytes);
       break;
     case 'a':
     case 'd':
-      squeeze_data(databuf, bytes);
+      squeeze_data(databuf, &bytes);
       session = split_data(databuf);
       print_session(session);
       break;
