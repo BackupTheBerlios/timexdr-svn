@@ -1,3 +1,11 @@
+2006-02-24  Jan Merka <merka@highsphere.net>
+	* Version 1.14
+	* Added option --eeprom-dump=full versus --eeprom-dump to allow for
+	dumping of the EEPROM content only or of all information received in
+	the packects (full).
+	* Final modifications and test of the installation process on MacOS.
+	
+
 2006-02-22  Jan Merka <merka@highsphere.net>
 	* Moved the installation process from using plain Makefile to
 	autotools (autoconf, automake,...)
@@ -9,36 +17,34 @@
 	* Modified to install and work on Darwin or MacOS 10.
 	* Bumped to version 1.10.
 
-Version 1.0
------------
-	- Added options -d and -f: The former option enables download of
+2005-04-14  Jan Merka <merka@highsphere.net>
+	* Version 1.0
+	* Added options -d and -f. The former option enables download of
 	sessions recorded within specified number of days only while the
 	second option makes timexdr to write the session data in file(s)
 	YYYYMMDD_HHMMSS-HHMMSS.{gps,hrm}.
 
-Version 1.0-pre2
-----------------
-	- Set default units to SI units (kilometers).
-	- Option -m|--miles for switching between SI and imperial units.
-	- Corrected ODO_MAX to 4.096 miles so the distance counter can
-	actually display distances greater than 4.096 miles.
+2005-04-11  Jan Merka <merka@highsphere.net>
+	* Version 1.0-pre2
+	* Set default units to SI units (kilometers).
+	* Option -m|--miles for switching between SI and imperial units.
+	* Corrected ODO_MAX to 4.096 miles so the distance counter can actually 	display distances greater than 4.096 miles.
 
-Version 1.0-pre1
-----------------
-	- I have decided to make this the first preliminary release of 
+2005-04-02 Jan Merka <merka@highsphere.net>
+	* Version 1.0-pre1
+	* I have decided to make this the first preliminary release of 
 	  a stable version. The utility seems to be stable already and
 	  with all core functionality implemented. However, I will give
 	  it a few days/weeks of testing before releasing it as stable.	
+	* Clear EEPROM functionality added.
 
-	- Clear EEPROM functionality added.
+2005-03-31 Jan Merka <merka@highsphere.net>
+	* Version 0.2
+	* GPS sessions and multi-device sessions are now printed too.
+	* Time synchronization added.
 
-Version 0.2
------------
-	- GPS sessions and multi-device sessions are now printed too.
-	- Time synchronization added.
-
-Version 0.1
------------
-	- First release.
-	- HRM sessions printed.
-	- EEPROM dumps.
+2005-03-29 Jan Merka <merka@highsphere.net>
+	* Version 0.1
+	* First release.
+	* HRM sessions printed.
+	* EEPROM dumps.
