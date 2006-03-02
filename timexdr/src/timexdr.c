@@ -104,7 +104,7 @@ static int find_timexdr(struct usb_device *tdr) {
   struct usb_device *dev;
   int count = 0;
   
-  for (bus = usb_busses; bus; bus = bus->next) {
+  for (bus = usb_get_busses(); bus; bus = bus->next) {
     for (dev = bus->devices; dev; dev = dev->next) {
       if ((dev->descriptor.idVendor == TIMEXDR_VENDOR_ID) &&
 	  ((dev->descriptor.idProduct == TIMEXDR_PRODUCT_ID1) ||
@@ -688,7 +688,7 @@ static void open_session_file(char *sname,
 	    hdr->year, hdr->month, hdr->day, hdr->hour, hdr->min, hdr->sec,
 	    ftr->hour, ftr->min, ftr->sec, sname);
   
-    if (verbosity) printf("file name: %s\tsession: %s\n", s,sname);
+    if (verbosity) printf("File name: %s\tSession: %s\n", s,sname);
 
     if ((sfp = fopen(s, "w")) == NULL) {
       fprintf(stderr, "%s: Can't open session file %s (%m).\n", progname, s);
@@ -855,6 +855,74 @@ static void gps_packet_4(double *split_time, unsigned char mo_yr,
 }
 
 /*
+ * Decodes and prints GPS packe type 15 (Full Monty)
+ * Input: split_time keeps track of the time, ses is the TDR session structure 
+ * with data, bzero is the index of the zero byte of the packet in 
+ * ses->data[].
+ */
+static void gps_packet_15(double *split_time, const struct tdr_session *ses,
+			  unsigned long int bzero) {
+  unsigned char status, acq, battery;
+  /* htrue - true heading
+     hmag - magnetic heading */
+  long int htrue, hmag;
+  double speed, dist, alt, lat, lon, sec;
+
+  if (dist_offset < 0) {
+    switch (dist_units) {
+    case 0:          /* Imperial units: miles */
+      if (fprintf(sfp, "  Time\t\tStatus\tACQ\tBAT\tV [mph]\tD [miles]\tAlt[ft]\tHt\tHm\tLatitude [rad]\tLongitude [rad]\tsec\n")
+	  < 0) {
+	fatal("Error writing to a file");
+      }
+      break;
+    case 1:          /* SI units: kilometers */
+    default:
+      if (fprintf(sfp, "  Time\t\tStatus\tACQ\tBAT\tV [kph]\t   D [km]\tAlt [m]\tHt\tHm\tLatitude [rad]\tLongitude [rad]\tsec\n")
+	  < 0) {
+	fatal("Error writing to a file");
+      }
+      break;
+    }
+  }
+
+  status = ( ses->data[bzero+2] & 0xf0 ) >> 4;
+  acq = ( ses->data[bzero+2] & 0x0c) >> 2;
+  battery = ( ses->data[bzero+2] & 0x03 );
+  speed = (double)((long int) ses->data[bzero+4] + 
+		   ( ((long int) (ses->data[bzero+3] & 0xf0)) << 4 )
+		   ) * SPEED_UNIT;
+  dist = (double)((long int) ses->data[bzero+5] +
+		  ( ((long int) (ses->data[bzero+3] & 0x0f)) << 8 )
+		  ) * DIST_UNIT;
+  dist_corrections(&dist);
+  alt = (double)((long int) ses->data[bzero+7] +
+		 ((long int) ses->data[bzero+6] << 8 ) -
+		 ALT_OFFSET) * ALT_UNIT;
+  alt = (dist_units == 0) ? alt : FT_TO_M(alt); 
+  htrue = ((long int) ses->data[bzero+8]) * HEADING_UNIT;
+  hmag = ((long int) ses->data[bzero+9]) * HEADING_UNIT;
+  lat = (double)((long int) ses->data[bzero+12] +
+		 ((long int) ses->data[bzero+11] << 8 ) +
+		 ((long int) ses->data[bzero+10] << 16 ) ) * LL_UNIT_DEG;
+  lon = (double)((long int) ses->data[bzero+15] +
+		 ((long int) ses->data[bzero+14] << 8 ) +
+		 ((long int) ses->data[bzero+13] << 16 ) ) * LL_UNIT_DEG;
+  sec   = (double)((int)(ses->data[bzero+16] & 0xfc) >> 2) + 
+    (double)((int)(ses->data[bzero+16] & 0x03))*0.25;
+
+  time2str(time_str, *split_time + 0.5);
+  if (fprintf(sfp, "%s\t0x%x\t0x%x\t0x%x\t%5.1f\t%9.3f\t%7.1f\t%4d\t%4d\t%14.9f\t%14.9f\t%5.2f\n", 
+	      time_str, status, acq, battery, 
+	      unit_conv(speed), unit_conv(dist),
+	      alt, htrue, hmag, lat, lon, sec) < 0) {
+    fatal("Error writing to a file");
+  }
+
+  *split_time += TIME_STEP_GPS;
+}
+
+/*
  * Prints GPS session data to stdout. 
  */
 static void gps_session(const struct tdr_session *ses) { 
@@ -875,7 +943,9 @@ static void gps_session(const struct tdr_session *ses) {
   session_header("GPS session", &(ses->header), &(ses->footer));
  
   for (i=0; (i < bytes) && 
-	 (psize = (ses->data[i] & PACKET_LENGTH_MASK)) <= (bytes - i); 
+	 (psize = ((ses->data[i] == PACKET_TYPE_15) ?
+		   PACKET_TYPE_15_LENGTH :
+		   ses->data[i] & PACKET_LENGTH_MASK)) <= (bytes - i); 
        i += psize) {
     
     switch (ses->data[i]) {
@@ -891,11 +961,14 @@ static void gps_session(const struct tdr_session *ses) {
       gps_packet_4(&split_time, ses->data[i+1], ses->data[i+2], 
 		   ses->data[i+3], ses->data[i+4]);
       break;  
+    case PACKET_TYPE_15:
+      gps_packet_15(&split_time, ses, i);
+      break;
     case PACKET_TYPE_2:
     case PACKET_TYPE_3:
     case PACKET_TYPE_5:
-    case PACKET_TYPE_15:
     default:
+      fprintf(stderr, "Packet type: %02x\n", ses->data[i]);
       fatal("This GPS packet handling is not implemented yet");
       break;
     }

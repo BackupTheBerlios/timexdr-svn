@@ -22,6 +22,7 @@
 extern int errno;
 #endif
 
+#include <math.h>
 #include <getopt.h>
 #include <time.h>
 

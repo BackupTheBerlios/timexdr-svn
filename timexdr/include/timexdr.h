@@ -153,12 +153,20 @@
 /* Data units */
 #define SPEED_UNIT                  0.1    /* mph */
 #define DIST_UNIT                   0.001  /* mile */
+#define ALT_UNIT                    1      /* foot */
+#define HEADING_UNIT                2      /* degrees */
+#define LL_UNIT                     M_PI/pow(2,23)     /* radian */
+#define LL_UNIT_DEG                 180/pow(2,23)      /* degrees */
+
+/* Altitude offset: 0 value represents 2000 feet below sea level */
+#define ALT_OFFSET                  2000   /* feet */
 
 /* Odometer quirks */
 #define ODO_MAX                     4.096  /* miles */
 
 /* Unit conversion */
 #define MILES_TO_KM(mi)             (1.609344 * (mi)) 
+#define FT_TO_M(ft)                 (0.3048 * (ft))
 
 /* Output report array: Byte 0 is the Report Number, byte 1 specifies the 
  * configuration, byte 2 encodes command type and the number n of bytes to send 
