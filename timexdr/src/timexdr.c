@@ -855,7 +855,7 @@ static void gps_packet_4(double *split_time, unsigned char mo_yr,
 }
 
 /*
- * Decodes and prints GPS packe type 15 (Full Monty)
+ * Decodes and prints GPS packe type 15 (Full position data)
  * Input: split_time keeps track of the time, ses is the TDR session structure 
  * with data, bzero is the index of the zero byte of the packet in 
  * ses->data[].
