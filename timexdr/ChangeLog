@@ -1,3 +1,8 @@
+2006-03-03  Jan Merka <merka@highsphere.net>
+	* Added function for handling GPS_PACKET_TYPE=15 which provides
+	complete set of navigation data.
+	* Modified Makefile to install the executable setuid
+
 2006-02-24  Jan Merka <merka@highsphere.net>
 	* Version 1.14
 	* Added option --eeprom-dump=full versus --eeprom-dump to allow for
