@@ -1,3 +1,11 @@
+2006-03-23  Jan Merka <merka@highsphere.net>
+	* Modified Makefile to install the executable setuid
+	* timexdr now drops root privileges immediately after device
+	initialization. Thus, any data files written are now owned by the user
+	running timexdr and not by root.
+	* Updated man page, README.
+	* Fixed a bug in plot_session.gri.
+
 2006-03-03  Jan Merka <merka@highsphere.net>
 	* Added function for handling GPS_PACKET_TYPE=15 which provides
 	complete set of navigation data.
