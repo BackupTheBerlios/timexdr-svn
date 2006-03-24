@@ -179,6 +179,9 @@ static usb_dev_handle *timexdr_open(void) {
     fatal("Couldn't open the device. Check your access rights");
   }
 
+  /* Drop (root) privileges to UID */
+  setuid(getuid());
+
   return udev;
 }
 
@@ -1049,7 +1052,7 @@ static void print_session(const struct tdr_session *session) {
   struct tdr_session *ses;
 
   for (ses = session; ses;  ses = ses->next) {
-    
+ 
     if (newer_session(&ses->header)) {
       switch (ses->header.dev & SESSION_MASK) {
       case HRM_SESSION:
@@ -1240,7 +1243,7 @@ int main(int argc, char *argv[])
     default:
       break;
     }
-    
+
     timexdr_close(dev);
     break;
 

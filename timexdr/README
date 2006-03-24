@@ -13,7 +13,8 @@ You will need libusb shared libraries installed.
 
 The program has been tested with linux kernel 2.6.10 and libusb 0.1.10a.
 
-usbfs has to be mounted (and of course compiled into the kernel).
+You will need udev configured or mounted usbfs. If both udev and usbfs are
+present on the system, udev device nodes are used by timexdr.
 
 3. INSTALLATION
 ---------------
@@ -24,12 +25,12 @@ The installation steps:
 	make
 	make install
 
-timexdr needs a write access to /proc/bus/usb/BBB/DDD where BBB is the
-USB bus number and DDD device number of the attached device. BBB and DDD
-can change every time the device is attached to the USB port. Therefore,
-you shouldn't rely on the BBB and DDD numbers. You can either allow write 
-access to all devices on usbfs file system or set the setuid-bit of timexdr.
-Please let me know if you know about a better solution.
+timexdr needs a write access to /dev/bus/usb/BBB/DDD or /proc/bus/usb/BBB/DDD,
+depending whether udev or usbfs is used. BBB is the USB bus number and DDD 
+device number of the attached device. BBB and DDD can change every time the 
+device is attached to the USB port. Therefore, you shouldn't rely on the BBB 
+and DDD numbers. Timexdr is installed SETUID to make sure it can initialize
+the device and the root privileges are dropped immediately after that.
 
 4. USAGE
 --------

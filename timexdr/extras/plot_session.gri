@@ -131,6 +131,8 @@ draw title "\session_title"
 \distance = ".i."
 \avg_speed = ".i."
 \avg_pace = ".i."
+\avg_pace_min = ".i."
+\avg_pace_sec = ".i."
 \avg_hrm = ".i."
 
 # -----

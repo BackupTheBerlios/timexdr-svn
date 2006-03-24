@@ -1,4 +1,4 @@
-.TH TIMEXDR 1 "22 February 2006"
+.TH TIMEXDR 1 "23 March 2006"
 .SH NAME
 TIMEXDR \- Timex Data Recorder control program
 .SH SYNOPSIS
@@ -93,33 +93,33 @@ in the working directory:
 .PP
     timexdr \-a \-f
 .SH FILES
-.TP 
-.B /proc/bus/usb/BBB/DDD
-Each connected USB has one file. The BBB indicates the bus number while 
+The device is accessed using either udev or usbfs. Each USB device has one
+file /dev/bus/usb/BBB/DDD and/or /proc/bus/usb/BBB/DDD depending whether
+udev or usbfs is installed. The udev device node is used when both udev
+and usbfs are present. The BBB indicates the bus number while 
 the DDD indicates the device address on that bus. Both numbers are assigned
 automatically.
-.P
+.TP
+.B /dev/bus/usb/BBB/DDD
+This file (device node) is provided automatically by udev. However, udev
+configurations vary and a node of a different name can be created.
+.TP 
+.B /proc/bus/usb/BBB/DDD
 If /proc/bus/usb appears empty, and a host controller driver has been
 loaded, then you need to mount the usbfs filesystem. Issue the command 
 (as root):
-.P
-mount -t usbfs none /proc/bus/usb
-.P
+.IP
+	mount -t usbfs none /proc/bus/usb
+.IP
 or as a more permanent alternative method add 
-.P
-usbfs /proc/bus/usb usbfs defaults 0 0
-.P
+.IP
+	usbfs /proc/bus/usb usbfs defaults 0 0
+.IP
 to /etc/fstab. The usbfs support has to be compiled in the kernel.
-.P
-You must be able to write to the file /proc/bus/usb/BBB/DDD 
-to use this program or set the setuid-bit of the program.
 .SH NOTES
-The Timex GPS unit is apparently capable of reporting also geographical
-position, heading and altitude and Timex Data Recorder can receive all
-this information. However, it is unknown to me how to tell the GPS
-what kind of data to send, i.e. which data profile to transmit. If you
-know a solution or hint please send it to the author.
+The utility is installed SETUID and the root privileges are dropped 
+immediately after the device is initialized. 
 .SH BUGS
-If you find any, please report them to the author. 
+Please report them to the author. 
 .SH AUTHOR
 timexdr was written by Jan Merka <merka@highsphere.net>. 
