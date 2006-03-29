@@ -54,6 +54,8 @@ unset title
 # ------------------
 set size nosquare 1,0.23
 set origin 0,0
+set ytics nomirror
+set y2tics nomirror
 set xlabel "Distance [km]"
 set ylabel "Alt [m]"
 set y2label "v [km/h]"
