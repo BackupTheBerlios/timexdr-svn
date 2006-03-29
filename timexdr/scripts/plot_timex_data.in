@@ -32,11 +32,12 @@ NO_ARGS=0
 usage() {
   echo "Usage: $( basename $0 ) [OPTIONS] file1 [file2]"
   echo "Options:"
-  echo "-f <format> Format specifies what kind of output will be produced. "
-  echo -e "\tDefault is x11. Available formats: ps (postscript), x11." 
-  echo "-m Plot the GPS map based on waypoints."
-  echo "-o <out_file> Specify a name for the output file."
-  echo "-t <map_title> Map title is used to label the GPS waypoing (map) plot" 
+  echo -e "-f <format>\tFormat specifies what kind of output will be produced. "
+  echo -e "\t\tDefault is x11. Available formats: ps (postscript), x11." 
+  echo -e "-l <layout>\tPage layout [landscape|portrait]. Default is landscape."
+  echo -e "-m \t\tPlot the GPS map based on waypoints."
+  echo -e "-o <out_file>\tSpecify a name for the output file."
+  echo -e "-t <map_title>\tMap title is used to label the GPS waypoing (map) plot" 
   echo
   echo "Files file1 and file2 hold HRM and GPS (*.hrm, *.gps) data, their"
   echo "order on the command line is not important."
@@ -149,7 +150,7 @@ create_output() {
          out_ext=".ps" 
 	 get_out_name
 	 cat > $DEF_FILE << EOF
-set terminal postscript landscape enhanced color 10
+set terminal postscript $orientation enhanced color 10
 set output "$out_file"
 EOF
 	 			;;
@@ -204,8 +205,8 @@ EOF
 	  sed "$sed_cmd"			|
 	  gnuplot $OPTS
   else	# Plot HRM and GPS data
-	  hrm_avg=$( get_hrm_avg ${TEMPDATA}.hrm )
-	  gps_avg=( $( get_gps_avg ${TEMPDATA}.gps ) )
+	  [ $plot_hrm == 1 ] && hrm_avg=$( get_hrm_avg ${TEMPDATA}.hrm )
+	  [ $plot_gps == 1 ] && gps_avg=( $( get_gps_avg ${TEMPDATA}.gps ) )
 	  cat $DEF_FILE $HRM_GPS_SCRIPT		|
 	  sed "$sed_cmd"			|
 	  gnuplot $OPTS
@@ -221,10 +222,14 @@ EOF
 [ $# -eq "$NO_ARGS" ]  &&  usage
 
 # Process options
-while getopts ":f:hmo:t:" OPT; do
+while getopts ":f:hl:mo:t:" OPT; do
   case $OPT in
    f)  out_type=$OPTARG ;;
    h)  usage		;;
+   l)  case "$OPTARG" in
+   	p|po|por|port|portrait)  orientation="portrait"	;;
+	*)	orientation="landscape"			;;
+       esac		;;
    m)  plot_map=1	;;
    o)  out_file=$OPTARG	;;
    t)  map_title=$OPTARG ;;

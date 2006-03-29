@@ -60,7 +60,7 @@ set ytics nomirror
 set y2tics nomirror
 plot [0:*] [0:*] '__tmp.gps' using 1:5		\
     title "Speed SPD_AVG km/h" with line,	\
-    '__tmp.gps' using 1:(60/($5) > 20 ? 20 : 60/($5)) 	\
+    '__tmp.gps' using 1:(60/(1.0*($5)) > 20 ? 20 : 60/(1.0*($5))) 	\
     axis x1y2 title "Pace PACEM_AVG\'PACES_AVG\'\'" with line	
 # Unset the title again in case HRM data are not drawn this time
 unset title	# Unset the title on top of the plot

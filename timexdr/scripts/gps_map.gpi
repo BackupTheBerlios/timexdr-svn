@@ -11,40 +11,47 @@ set grid front                  # Draw the grid and ticks on top of the data
 # and brings up a new prompt ("multiplot>" instead of "gnuplot>")
 set multiplot
 
-# Map 
-# First set up the plotting
-set size square 1,0.73
-set origin 0,0.25
-set xlabel "East [km] --->"
-set ylabel "North [km] --->"
-set xrange [0:*]
-set yrange [0:*]
-set title "SES_DATE SES_TIME       Lon LON_AVG^o  Lat LAT_AVG^o"
+# -------------
+#     Map 
+# -------------
 
-# Now prepare calculations
-
+# Calculations
 map_offset = 0.1	# [km] We don't want the line to touch axes
 
 # From Allen's Astrophysical Quantities, p.246, 4th edition, 2000.
 # x is geodetic latitude
 f_lat(x) =  110.575 + 1.110*sin(x)**2		# km per 1 degree of latitude
 f_lon(x) = (111.320 + 0.373*sin(x)**2)*cos(x)	# km per 1 degree of longitude
-latdist  = f_lat(lat_avg)
-londist  = f_lon(lat_avg)
-dlat_min = (lat_min - lat_avg)*latdist
+latdist  = f_lat(lat_avg/180.0*pi)
+londist  = f_lon(lat_avg/180.0*pi)
+dlat = (lat_max - lat_min)*latdist
+dlon = (lon_max - lon_min)*londist
+
+# Set up plotting
+set size ratio (ceil(dlat+2*map_offset)/(1.0*ceil(dlon+2*map_offset))) 1,0.73
+#set size  1,0.73
+set origin 0,0.25
+set xlabel "East [km] --->"
+set ylabel "North [km] --->"
+set xrange [0:ceil(dlon+2*map_offset)]
+set yrange [0:ceil(dlat+2*map_offset)]
+set title "SES_DATE SES_TIME       Lon LON_AVG^o  Lat LAT_AVG^o"
 
 # Plot the waypoints
 plot '__tmp.gps' using 	(($11 - lon_min)*londist + 		\
-	map_offset):(($10 - lat_min)*latdist + map_offset)	\
+	map_offset):(($10 - lat_min)*latdist +			\
+	map_offset)						\
  	title "MAP_TITLE" with lines,				\
      '__tmp.gps' every 1000000 					\
-	using 	(($11 - lon_min)*londist + 		\
-	map_offset):(($10 - lat_min)*latdist + map_offset)	\
+	using 	(($11 - lon_min)*londist + 			\
+	map_offset):(($10 - lat_min)*latdist + 			\
+	map_offset)						\
  	title "Start" with points
 unset title
 
-# ----------------
+# ------------------
 # Distance-Altitude
+# ------------------
 set size nosquare 1,0.23
 set origin 0,0
 set xlabel "Distance [km]"
