@@ -1,0 +1,62 @@
+# Plot waypoints (a "map") and a Dist-Altitude graph
+
+# Set up the size and origin before multiplot mode
+set size 1,1
+set origin 0,0
+
+set key left box                # Place the labels left and create a box
+set grid front                  # Draw the grid and ticks on top of the data
+
+# Done interactively, this takes gnuplot into multiplot mode
+# and brings up a new prompt ("multiplot>" instead of "gnuplot>")
+set multiplot
+
+# Map 
+# First set up the plotting
+set size square 1,0.73
+set origin 0,0.25
+set xlabel "East [km] --->"
+set ylabel "North [km] --->"
+set xrange [0:*]
+set yrange [0:*]
+set title "SES_DATE SES_TIME       Lon LON_AVG^o  Lat LAT_AVG^o"
+
+# Now prepare calculations
+
+map_offset = 0.1	# [km] We don't want the line to touch axes
+
+# From Allen's Astrophysical Quantities, p.246, 4th edition, 2000.
+# x is geodetic latitude
+f_lat(x) =  110.575 + 1.110*sin(x)**2		# km per 1 degree of latitude
+f_lon(x) = (111.320 + 0.373*sin(x)**2)*cos(x)	# km per 1 degree of longitude
+latdist  = f_lat(lat_avg)
+londist  = f_lon(lat_avg)
+dlat_min = (lat_min - lat_avg)*latdist
+
+# Plot the waypoints
+plot '__tmp.gps' using 	(($11 - lon_min)*londist + 		\
+	map_offset):(($10 - lat_min)*latdist + map_offset)	\
+ 	title "MAP_TITLE" with lines,				\
+     '__tmp.gps' every 1000000 					\
+	using 	(($11 - lon_min)*londist + 		\
+	map_offset):(($10 - lat_min)*latdist + map_offset)	\
+ 	title "Start" with points
+unset title
+
+# ----------------
+# Distance-Altitude
+set size nosquare 1,0.23
+set origin 0,0
+set xlabel "Distance [km]"
+set ylabel "Alt [m]"
+set y2label "v [km/h]"
+set yrange [*:*]
+set y2range [0:*]
+plot [0:*] [*:*] '__tmp.gps' using 6:7 		\
+	title "Altitude ALT_AVG m" with lines,	\
+	'__tmp.gps' using 6:5 axis x1y2		\
+	title "Speed SPD_AVG km/h" with lines
+
+# On some terminals, nothing gets plotted until this command is issued
+unset multiplot
+

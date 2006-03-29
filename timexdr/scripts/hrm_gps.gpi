@@ -1,0 +1,117 @@
+#!/usr/bin/gnuplot -persist
+
+#plot_hrm = 0
+
+# Set default ranges
+set xrange [0:*]
+set yrange [0:*]
+set y2range [0:*]
+
+set key left box		# Place the labels left and create a box
+set grid front			# Draw the grid and ticks on top of the data
+
+# Uncomment the following to line up the axes
+set lmargin 12
+set rmargin 10
+set bmargin 0
+set tmargin 0
+
+# Set up the size and origin before multiplot mode
+set size 1,1
+set origin 0,0
+
+# Set pannel size and distance
+if (plot_hrm != 1) pysize=0.31; pstep=0.33; 	\
+              else pysize=0.23; pstep=0.25
+# Normally opos would be 1 but we need to squeeze a title above the
+# first panel so it is less
+opos=0.99			# y-coordinate of pannel's origin
+
+set xdata time			# The x axis data is time
+set timefmt x "%H:%M:%S"	# The dates in the files look like 00:10:34
+set format x ""
+unset xlabel
+
+# Done interactively, this takes gnuplot into multiplot mode
+# and brings up a new prompt ("multiplot>" instead of "gnuplot>")
+set multiplot
+
+set title "Starting on SES_DATE at SES_TIME" ,-1
+
+# Heart rate
+if (plot_hrm == 1) 		\
+	set size 1,pysize;	\
+	opos = opos - pstep;	\
+	set origin 0,opos;	\
+	set ylabel "hr [bpm]";	\
+	set yrange [*:*];	\
+	plot "__tmp.hrm" using 1:2	\
+	title "Heart Rate HRM_AVG bpm" 	\
+	with line;		\
+	unset title	# Unset the title on top of the plot
+
+# Speed/Pace
+set size 1,pysize
+opos = opos - pstep
+set origin 0,opos
+set ylabel "v [km/h]"
+set y2label "p [min/km]"
+set ytics nomirror
+set y2tics nomirror
+plot [0:*] [0:*] '__tmp.gps' using 1:5		\
+    title "Speed SPD_AVG km/h" with line,	\
+    '__tmp.gps' using 1:(60/($5) > 20 ? 20 : 60/($5)) 	\
+    axis x1y2 title "Pace PACEM_AVG\'PACES_AVG\'\'" with line	
+# Unset the title again in case HRM data are not drawn this time
+unset title	# Unset the title on top of the plot
+
+# Distance/Altitude
+set size 1,pysize
+opos = opos - pstep
+set origin 0,opos
+set ylabel "d [km]"
+if (use_alt == 1)				\
+	set y2label "a [m]"	;		\
+	set y2range [*:*]	;		\
+	plot [0:*] [0:*] 			\
+	'__tmp.gps' using 1:6			\
+		title "Distance DST_FIN km"	\
+		with line,			\
+  	'__tmp.gps' using 1:7	 		\
+		axis x1y2 			\
+		title "Altitude ALT_AVG m" 	\
+		with line	;		\
+	unset y2label		;		\
+	set ytics mirror	;		\
+	unset y2tics		;		\
+else	unset y2label		;		\
+	set ytics mirror	;		\
+	unset y2tics		;		\
+	plot [0:*] [0:*]			\
+  	'__tmp.gps' using 1:6 			\
+		title "Distance DST_FIN km"	\
+		with line
+
+# Device info
+set size 1,pysize - 0.10
+opos = opos - pstep + 0.10
+set origin 0,opos
+set key left bottom box
+set xlabel "Time [h:min]"
+set format x "%H:%M"		# Format of tics on the x-axis: HH:MM 
+set ylabel " "
+set yrange [0:*]
+set ytics 1
+set ytics  ( "Sky Search" 0, "Normal ACQ" 1, "2D Fix" 2, 	\
+	"3D Fix" 3, "GPS Failure" 4)
+set y2tics ( "Empty" 0, "Low (30%%)" 1, "60%%" 2, "Full" 3 )
+plot [0:*] [0:4.15]	\
+     '__tmp.gps' using 1:4 title "Battery" with line, \
+     '__tmp.gps' using 1:3 title "ACQ" with line,	\
+     '__tmp.gps' using 1:($2>3 ? 4 : $2) title "Status" with line
+
+# On some terminals, nothing gets plotted until this command is issued
+unset multiplot
+
+# Remove all customizations
+#reset

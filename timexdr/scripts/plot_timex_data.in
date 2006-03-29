@@ -1,0 +1,250 @@
+#!/bin/bash
+# 
+# This script plots HRM and GPS data recorded by the Timex Data Recorder.
+# First, the data have to be downloaded and saved to files *.hrm *.gps using
+# the timexdr utility.
+#  
+
+# Default values
+plot_hrm=0
+plot_gps=0
+hrm_file=""
+gps_file=""
+out_file=""
+out_type="x11"
+# Default $out_file is log_YYYYMMDD.ext, where YYYYMMMDD is from the 
+# data file(s) and extension depends on the $out_type.
+out_prefix="log_"
+
+plot_map=0
+map_title="Path"
+
+# Scripts
+prefix=@prefix@
+HRM_ONLY_SCRIPT=@SCRIPTS_DIR@/hrm_only.gpi
+HRM_GPS_SCRIPT=@SCRIPTS_DIR@/hrm_gps.gpi
+GPS_MAP_SCRIPT=@SCRIPTS_DIR@/gps_map.gpi
+
+# ---------------
+
+NO_ARGS=0
+
+usage() {
+  echo "Usage: $( basename $0 ) [OPTIONS] file1 [file2]"
+  echo "Options:"
+  echo "-f <format> Format specifies what kind of output will be produced. "
+  echo -e "\tDefault is x11. Available formats: ps (postscript), x11." 
+  echo "-m Plot the GPS map based on waypoints."
+  echo "-o <out_file> Specify a name for the output file."
+  echo "-t <map_title> Map title is used to label the GPS waypoing (map) plot" 
+  echo
+  echo "Files file1 and file2 hold HRM and GPS (*.hrm, *.gps) data, their"
+  echo "order on the command line is not important."
+  exit 1
+}  
+
+get_session_time() {
+  local a
+  a=( $( head -n 1 $1 ) )
+  ses_date=${a[2]}
+  ses_time=$( echo ${a[3]} | sed "s/:/\\\:/g" )
+}
+
+get_file_type() {
+  while [ $# -gt 0 ]; do
+    [ -f "$1" ]  ||  ( echo "Input file $1 does not exist." ; exit 1 )
+    if grep -q "HRM" "$1" 2>/dev/null ; then
+	hrm_file="$1"
+	plot_hrm=1
+	get_session_time $hrm_file
+    elif grep -q "GPS" "$1" 2>/dev/null ; then
+	gps_file="$1"
+	plot_gps=1
+	get_session_time $gps_file
+    fi		
+    shift 1
+  done
+  [ $plot_hrm == 1 -o $plot_gps == 1 ]  ||  		\
+  	( echo "No data file found." ; exit 1 )
+}
+
+get_out_name() {
+  local TIMEOUT=10 	# seconds
+  
+  if [ "x$out_file" == "x" ]; then
+     out_file=$( grep -h "session" $hrm_file $gps_file 2>/dev/null )
+     out_file="${out_file:13:10}"
+     out_file="${out_prefix}${out_file//-/}$out_ext"    	  
+     [ $plot_map == 1 ] && out_file="m${out_file}"
+  fi
+  if [ -f $out_file ]; then
+     echo "Warning: Output file $out_file exists."
+     echo -n "Overwrite? [y/N]: "
+     read -t $TIMEOUT answer
+     echo
+     if [ -z "$answer" ]; then
+	   echo "Timed out, exiting."
+	   exit 1
+     fi
+     case "$answer" in
+	   y|Y|yes|YES|Yes) : 	;;
+	   *)	echo "Please chose a different output name. Exiting."
+	 	exit 1		;;  
+     esac
+  fi 
+}
+
+check_gnuplot() {
+  gnu_bin=$( which gnuplot )
+  if [ $? -ne 0 ]; then
+    echo "Error: gnuplot is not installed or not in your PATH."
+    exit 1
+  fi  
+}
+
+get_hrm_avg() {
+  gawk '{ hrm += $2 }
+  	END { printf "%3d\n", hrm/NR }' $1  
+}
+
+get_gps_avg() {
+# Returns distance; average speed, average pace (minutes and seconds), latitude,
+# longitude, and altitude; minimum and maximum latitude and longitude
+  gawk '{ alt += $7 ; lat += $10 ; lon += $11 ;
+          if (NR == 1)
+	  { lat_min = $10 ; lat_max = $10 ; lon_min = $11 ; lon_max = $11
+          } else
+	  { if (lat_min > $10) lat_min = $10
+	    if (lat_max < $10) lat_max = $10
+	    if (lon_min > $11) lon_min = $11
+	    if (lon_max < $11) lon_max = $11
+	  }
+        }
+  	END {	distance = $6 ; 
+		split($1, hms, ":")     ;
+		time = hms[1] * 3600 + hms[2] * 60 + hms[3]     ;
+		speed = distance*3600/time                      ;
+		# Calculate pace and split it in minutes and seconds
+		pace = 60/speed                                 ;
+		pace_m = int(pace)                              ;
+		pace_s = int((pace - pace_m)*60 + 0.5)          ;
+		# Print total distance; average speed, pace, 
+		# latitude, longitude, and altitude;
+		# minimum and maximum latitude and longitude
+		printf "%8.3f %6.1f %4d %4d %8.3f %8.3f %8.1f %14.9f %14.9f %14.9f %14.9f\n",
+		        distance, speed, pace_m, pace_s,
+		        lat/NR, lon/NR, alt/NR,
+		        lat_min, lat_max, lon_min, lon_max	;
+	}' $1
+}
+
+create_output() {
+  local	DEF_FILE="__def.gpi"
+  local TEMPDATA="__tmp"
+  local OPTS=""
+  local GREP="grep -v -e session -e Time -e Corrupted -e Missing -e GMT"
+  
+  case $out_type in
+    ps|postscript) 		
+         out_ext=".ps" 
+	 get_out_name
+	 cat > $DEF_FILE << EOF
+set terminal postscript landscape enhanced color 10
+set output "$out_file"
+EOF
+	 			;;
+    x11) echo ""  > $DEF_FILE
+         OPTS="-persist"	;;
+    *)   echo "Output format $out_type is not recognized."
+         usage			;;
+  esac
+  
+  # Let gnuplot know which data file is available
+  echo "plot_hrm=$plot_hrm" >> $DEF_FILE
+  echo "plot_gps=$plot_gps" >> $DEF_FILE
+  
+  # Prepare data files for gnuplot. Calculate averages.
+  if [ $plot_hrm == 1 ]; then
+	$GREP $hrm_file > ${TEMPDATA}.hrm
+	hrm_avg=$( get_hrm_avg ${TEMPDATA}.hrm )
+  fi
+  if [ $plot_gps == 1 ]; then
+	grep -q "Alt" $gps_file  &&  use_alt=1  || use_alt=0
+	echo "use_alt=$use_alt"  >>  $DEF_FILE
+	
+	$GREP $gps_file > ${TEMPDATA}.gps
+  	sed -i "s:0x::g"  ${TEMPDATA}.gps
+	
+	gps_avg=( $( get_gps_avg ${TEMPDATA}.gps ) )
+  fi
+ 
+  sed_cmd="s:HRM_AVG:$hrm_avg:
+	   s:DST_FIN:${gps_avg[0]}:
+	   s:SPD_AVG:${gps_avg[1]}:
+	   s:PACEM_AVG:${gps_avg[2]}:
+	   s:PACES_AVG:${gps_avg[3]}:
+	   s:LAT_AVG:${gps_avg[4]}:
+	   s:LON_AVG:${gps_avg[5]}:
+	   s:ALT_AVG:${gps_avg[6]}:
+	   s:MAP_TITLE:$map_title:
+	   s:SES_DATE:$ses_date:
+	   s:SES_TIME:$ses_time:
+ 	   "
+  if [ $plot_gps == 0 ]; then  # Only HRM
+	  cat $DEF_FILE $HRM_ONLY_SCRIPT	|
+	  sed "$sed_cmd"			|
+	  gnuplot $OPTS
+  elif [ $plot_map == 1 ]; then # Plot GPS map
+	  echo "lat_avg=${gps_avg[4]}"		>>  $DEF_FILE
+	  echo "lat_min=${gps_avg[7]}"		>>  $DEF_FILE
+	  echo "lat_max=${gps_avg[8]}"		>>  $DEF_FILE
+	  echo "lon_min=${gps_avg[9]}"		>>  $DEF_FILE
+	  echo "lon_max=${gps_avg[10]}"		>>  $DEF_FILE
+	  cat $DEF_FILE $GPS_MAP_SCRIPT		|
+	  sed "$sed_cmd"			|
+	  gnuplot $OPTS
+  else	# Plot HRM and GPS data
+	  hrm_avg=$( get_hrm_avg ${TEMPDATA}.hrm )
+	  gps_avg=( $( get_gps_avg ${TEMPDATA}.gps ) )
+	  cat $DEF_FILE $HRM_GPS_SCRIPT		|
+	  sed "$sed_cmd"			|
+	  gnuplot $OPTS
+  fi
+
+  # Clean up
+  rm -f $DEF_FILE ${TEMPDATA}.hrm ${TEMPDATA}.gps
+}
+
+# End of function definitions
+# ---------------------------
+
+[ $# -eq "$NO_ARGS" ]  &&  usage
+
+# Process options
+while getopts ":f:hmo:t:" OPT; do
+  case $OPT in
+   f)  out_type=$OPTARG ;;
+   h)  usage		;;
+   m)  plot_map=1	;;
+   o)  out_file=$OPTARG	;;
+   t)  map_title=$OPTARG ;;
+   *)  echo "Unimplemented option -${OPTARG}"
+       usage		;;   
+  esac
+done   
+
+# Decrement the argument pointer so it points to next argument. $1 now 
+# references the first non option item supplied on the command line if
+# one exists.
+shift $(( $OPTIND - 1 ))
+
+# Get data file names, check their existance and content
+case $# in
+  1)  get_file_type "$1"	;;
+  2)  get_file_type "$1" "$2"	;;
+  *)  echo -e "Wrong number of files specified:\n$@\n" 
+      usage	;;
+esac
+
+check_gnuplot
+create_output

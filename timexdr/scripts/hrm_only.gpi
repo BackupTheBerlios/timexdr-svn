@@ -1,0 +1,19 @@
+#!/usr/bin/gnuplot -persist
+
+# Set default ranges
+set xrange [0:*]
+set yrange [*:*]
+
+set key left box		# Place the labels left and create a box
+set grid front			# Draw the grid and ticks on top of the data
+
+set xdata time			# The x axis data is time
+set timefmt x "%H:%M:%S"	# The dates in the files look like 00:10:34
+set format x "%H:%M"		# Format of tics on the x-axis: HH:MM 
+
+set title "Starting on SES_DATE at SES_TIME", -1
+set xlabel "Time [h:min]"
+set ylabel "hr [bpm]"
+
+plot "__tmp.hrm" using 1:2 title "Heart Rate HRM_AVG bpm" with line
+
