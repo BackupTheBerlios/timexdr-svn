@@ -1,0 +1,208 @@
+Content-type: text/html
+
+<HTML><HEAD><TITLE>Manpage of TIMEXDR</TITLE>
+</HEAD><BODY>
+<H1>TIMEXDR</H1>
+Section: User Commands  (1)<BR>Updated: 23 March 2006<BR><A HREF="#index">Index</A>
+<A HREF="http://localhost/cgi-bin/man/man2html">Return to Main Contents</A><HR>
+
+<A NAME="lbAB">&nbsp;</A>
+<H2>NAME</H2>
+
+TIMEXDR - Timex Data Recorder control program
+<A NAME="lbAC">&nbsp;</A>
+<H2>SYNOPSIS</H2>
+
+<B>timexdr [options]</B>
+
+<A NAME="lbAD">&nbsp;</A>
+<H2>DESCRIPTION</H2>
+
+<P>
+
+<B>timexdr</B>
+
+is utility that can download data from the Timex Data Recorder device.
+This device records heart rate monitor (HRM) and/or position data (GPS)
+transmitted from Timex Bodylink HRM and GPS sensors.
+
+Stored data are printed to the standard output (STDOUT) by default (see
+option -f/--file for more details). 
+<A NAME="lbAE">&nbsp;</A>
+<H2>OPTIONS</H2>
+
+<DL COMPACT>
+<DT><B>-a, --all-sessions</B>
+
+<DD>
+Get data from all sessions. If both -a and -e options are used, the
+last one will be the one that's used.
+<DT><B>-c, --clear-eeprom</B>
+
+<DD>
+Clear the EEPROM memory (delete all recorded sessions). Memory is cleared
+after data are displayed if requested by the -a or -e options. 
+<DT><B>-d NUM, --days=NUM</B>
+
+<DD>
+Print only sessions recorded within the last NUM days. If NUM is omitted or
+zero, today's sessions are printed.
+<DT><B>-e, --eeprom-dump</B>
+
+<DD>
+Dump the EEPROM memory content. If both -a and -e options are used, the
+last one will be the one that's used. 
+<DT><B>-f, --file</B>
+
+<DD>
+Write the session data into file(s) named YYYYMMDD_HHMMSS-HHMMSS.{gps,hrm}
+where the time corresponds to the session start and stop times. The files 
+are placed in the working directory.
+<DT><B>-h, --help</B>
+
+<DD>
+Display usage information.
+<DT><B>-m, --miles</B>
+
+<DD>
+Display distance and speed in miles and mph, respectively. The default
+units are kilometers and kph.
+<DT><B>-t, --time-sync</B>
+
+<DD>
+Synchronize device's clock with system local time.
+<DT><B>-v NUM, --verbose=NUM</B>
+
+<DD>
+Increase the verbosity of program output for higher NUM. Roughly speaking, 
+NUM&lt;5 provides more information about the program actions then without this
+option, while higher NUM values show also some debugging information. If NUM 
+is ommitted, value 1 is assumed.
+<DT><B>-V, --version</B>
+
+<DD>
+Print the program version information and exit.
+</DL>
+<A NAME="lbAF">&nbsp;</A>
+<H2>EXAMPLES</H2>
+
+<P>
+
+For all examples below, it will be assumed that the Timex Data Recorder
+device is connected to the USB bus of the machine.
+<P>
+
+To display all stored sessions:
+<P>
+
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;timexdr&nbsp;-a
+<P>
+
+To store EEPROM memory content in a file eeprom.log:
+<P>
+
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;timexdr&nbsp;-e&nbsp;&gt;&nbsp;eeprom.log
+<P>
+
+To display EEPROM memory content and store it in a file eeprom.log:
+<P>
+
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;timexdr&nbsp;-e&nbsp;|&nbsp;tee&nbsp;eeprom.log
+<P>
+
+To synchronize device's clock with system local time:
+<P>
+
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;timexdr&nbsp;-t
+<P>
+
+To display all stored session data, synchronize the clock, and clear the 
+EEPROM memory afterwards:
+<P>
+
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;timexdr&nbsp;-c&nbsp;-a&nbsp;-t
+<P>
+
+To display only sessions recorded today and yesterday:
+<P>
+
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;timexdr&nbsp;-d1
+<P>
+
+Download only today's session(s) and store them in files 
+YYYYMMDD_HHMMSS-HHMMSS.{gps,hrm}:
+<P>
+
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;timexdr&nbsp;-d&nbsp;-f
+<P>
+
+To store all recorded sessions in files YYYYMMDD_HHMMSS-HHMMSS.{gps,hrm}
+in the working directory:
+<P>
+
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;timexdr&nbsp;-a&nbsp;-f
+<A NAME="lbAG">&nbsp;</A>
+<H2>FILES</H2>
+
+The device is accessed using either udev or usbfs. Each USB device has one
+file /dev/bus/usb/BBB/DDD and/or /proc/bus/usb/BBB/DDD depending whether
+udev or usbfs is installed. The udev device node is used when both udev
+and usbfs are present. The BBB indicates the bus number while 
+the DDD indicates the device address on that bus. Both numbers are assigned
+automatically.
+<DL COMPACT>
+<DT><B>/dev/bus/usb/BBB/DDD</B>
+
+<DD>
+This file (device node) is provided automatically by udev. However, udev
+configurations vary and a node of a different name can be created.
+<DT><B>/proc/bus/usb/BBB/DDD</B>
+
+<DD>
+If /proc/bus/usb appears empty, and a host controller driver has been
+loaded, then you need to mount the usbfs filesystem. Issue the command 
+(as root):
+<DT><DD>
+<TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</TT>mount -t usbfs none /proc/bus/usb<BR>
+<DT><DD>
+or as a more permanent alternative method add 
+<DT><DD>
+<TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</TT>usbfs /proc/bus/usb usbfs defaults 0 0<BR>
+<DT><DD>
+to /etc/fstab. The usbfs support has to be compiled in the kernel.
+</DL>
+<A NAME="lbAH">&nbsp;</A>
+<H2>NOTES</H2>
+
+The utility is installed SETUID and the root privileges are dropped 
+immediately after the device is initialized. 
+<A NAME="lbAI">&nbsp;</A>
+<H2>BUGS</H2>
+
+Please report them to the author. 
+<A NAME="lbAJ">&nbsp;</A>
+<H2>AUTHOR</H2>
+
+timexdr was written by Jan Merka &lt;<A HREF="mailto:merka@highsphere.net">merka@highsphere.net</A>&gt;. 
+<P>
+
+<HR>
+<A NAME="index">&nbsp;</A><H2>Index</H2>
+<DL>
+<DT><A HREF="#lbAB">NAME</A><DD>
+<DT><A HREF="#lbAC">SYNOPSIS</A><DD>
+<DT><A HREF="#lbAD">DESCRIPTION</A><DD>
+<DT><A HREF="#lbAE">OPTIONS</A><DD>
+<DT><A HREF="#lbAF">EXAMPLES</A><DD>
+<DT><A HREF="#lbAG">FILES</A><DD>
+<DT><A HREF="#lbAH">NOTES</A><DD>
+<DT><A HREF="#lbAI">BUGS</A><DD>
+<DT><A HREF="#lbAJ">AUTHOR</A><DD>
+</DL>
+<HR>
+This document was created by
+<A HREF="http://localhost/cgi-bin/man/man2html">man2html</A>,
+using the manual pages.<BR>
+Time: 04:13:00 GMT, March 24, 2006
+</BODY>
+</HTML>
