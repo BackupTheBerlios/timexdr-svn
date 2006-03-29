@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(timexdr, 1.16, merka@highsphere.net)
+AC_INIT(timexdr, 1.17, merka@highsphere.net)
 AC_CONFIG_AUX_DIR(config)
 #AC_CONFIG_SRCDIR([src/timexdr.c])
 AC_CONFIG_SRCDIR([include/config.h.in])
@@ -78,11 +78,22 @@ AM_CONDITIONAL(DARWIN_API, test "$os_support" = "darwin")
 AC_SUBST(OSLIBS)
 
 # Declare --enable-* args and collect ac_help strings
-AC_ARG_ENABLE(static, [  --enable-static         build a statically linked executable],,enable_static=no)
+AC_ARG_ENABLE(static, AC_HELP_STRING([--enable-static], 
+	      [build a statically linked executable (default is no)]),,
+	      [enable_static=no])
 
 if test "x$enable_static" = "xyes"; then
 	CFLAGS="$CFLAGS -static"
 fi
+
+# Enable plotting scripts by default
+AC_ARG_ENABLE(plot-scripts, AC_HELP_STRING([--enable-plot-scripts],
+	      [enable plotting scripts (default is yes)]),,
+	      [enable_plot_scripts=yes])
+if test "x$enable_plot_scripts" == "xyes"; then
+	SCRIPTS_DIR="$datadir/$PACKAGE_NAME/scripts"
+fi
+AC_SUBST(SCRIPTS_DIR)
 
 # Checks for programs.
 AC_PROG_CC
@@ -94,7 +105,8 @@ AC_CHECK_HEADERS([stdlib.h string.h strings.h errno.h usb.h math.h])
 # Checks for libraries.
 AC_CHECK_LIB([usb], [usb_init],,
 	     AC_MSG_ERROR(*** libusb required. Linking -lusb failed.))
-
+AC_CHECK_LIB([m], [fmod],,
+	     AC_MSG_ERROR(*** libm with function fmod() required. Linking -lm failed.))
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
 AC_STRUCT_TM
@@ -108,5 +120,7 @@ AC_CHECK_FUNCS([localtime_r])
 AC_CONFIG_FILES([Makefile
 		 doc/Makefile
 		 include/Makefile
+		 scripts/Makefile
+		 scripts/plot_timex_data
 		 src/Makefile])
 AC_OUTPUT

@@ -627,14 +627,14 @@ static char time_str[TIME_STR_LENGTH];
 /*
  * Converts seconds into a time string 
  */
-static void time2str(char *str_time, const unsigned long int seconds) {
-  unsigned long int hr, min, sec; 
+static void time2str(char *str_time, double seconds) {
+  long int hr, min;
+  double sec; 
 
   hr  = seconds / 3600;
   min = (seconds - hr*3600) / 60;
-  sec = seconds % 60;
-  sprintf(str_time, "%02lu:%02lu:%02lu", hr, min, sec);
-
+  sec = fmod(seconds,60);
+  sprintf(str_time, "%02d:%02d:%05.2f", hr, min, sec);
 }
 
 /* 
@@ -658,7 +658,7 @@ static void session_header(char *sname, const struct tdr_header *hdr,
  */
 static void packet_error(double split_time, unsigned char token) {
   
-  time2str(time_str, split_time + 0.5);
+  time2str(time_str, split_time);
 
   switch (token) {
   case MISSING_PACKET:
@@ -818,7 +818,7 @@ static void gps_packet_1(double *split_time, unsigned char status_byte,
 		  ( ((long int) (hsb & 0x0f)) << 8 )) * DIST_UNIT;
   dist_corrections(&dist);
 
-  time2str(time_str, *split_time + 0.5);
+  time2str(time_str, *split_time);
   if (fprintf(sfp, "%s\t0x%x\t0x%x\t0x%x\t%5.1f\t%9.3f\n", 
 	      time_str, status, acq, battery, 
 	      unit_conv(speed), unit_conv(dist)) < 0) {
@@ -848,7 +848,7 @@ static void gps_packet_4(double *split_time, unsigned char mo_yr,
   min   = (int)(mi_da & 0xfc) >> 2;
   sec   = (float)((int)(bsec & 0xfc) >> 2) + (float)((int)(bsec & 0x03))*0.25;
   
-  time2str(time_str, *split_time + 0.5);
+  time2str(time_str, *split_time);
   if (fprintf(sfp, "%s\t%i-%02i-%02i %2i:%02i:%05.2f GMT\n", time_str, 
 	      year, month, day, hour, min, sec) < 0) {
     fatal("Error writing to a file");
@@ -914,7 +914,7 @@ static void gps_packet_15(double *split_time, const struct tdr_session *ses,
   sec   = (double)((int)(ses->data[bzero+16] & 0xfc) >> 2) + 
     (double)((int)(ses->data[bzero+16] & 0x03))*0.25;
 
-  time2str(time_str, *split_time + 0.5);
+  time2str(time_str, *split_time);
   if (fprintf(sfp, "%s\t0x%x\t0x%x\t0x%x\t%5.1f\t%9.3f\t%7.1f\t%4d\t%4d\t%14.9f\t%14.9f\t%5.2f\n", 
 	      time_str, status, acq, battery, 
 	      unit_conv(speed), unit_conv(dist),

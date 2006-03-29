@@ -105,7 +105,7 @@ INSTALL_SCRIPT = ${INSTALL}
 INSTALL_STRIP_PROGRAM = ${SHELL} $(install_sh) -c -s
 LDFLAGS = 
 LIBOBJS = 
-LIBS = -lusb 
+LIBS = -lm -lusb 
 LINUX_API = 1
 LINUX_API_FALSE = #
 LINUX_API_TRUE = 
@@ -116,14 +116,15 @@ OSLIBS =
 PACKAGE = timexdr
 PACKAGE_BUGREPORT = merka@highsphere.net
 PACKAGE_NAME = timexdr
-PACKAGE_STRING = timexdr 1.16
+PACKAGE_STRING = timexdr 1.17
 PACKAGE_TARNAME = timexdr
-PACKAGE_VERSION = 1.16
+PACKAGE_VERSION = 1.17
 PATH_SEPARATOR = :
+SCRIPTS_DIR = ${prefix}/share/timexdr/scripts
 SET_MAKE = 
 SHELL = /bin/sh
 STRIP = 
-VERSION = 1.16
+VERSION = 1.17
 ac_ct_CC = gcc
 ac_ct_STRIP = 
 am__fastdepCC_FALSE = #
@@ -161,7 +162,7 @@ sbindir = ${exec_prefix}/sbin
 sharedstatedir = ${prefix}/com
 sysconfdir = ${prefix}/etc
 target_alias = 
-SUBDIRS = doc include src
+SUBDIRS = doc include scripts src
 all: all-recursive
 
 .SUFFIXES:
@@ -335,7 +336,7 @@ distclean-tags:
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
 	mkdir $(distdir)
-	$(mkdir_p) $(distdir)/config
+	$(mkdir_p) $(distdir)/config $(distdir)/scripts
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \
@@ -568,8 +569,6 @@ uninstall-info: uninstall-info-recursive
 	mostlyclean-recursive pdf pdf-am ps ps-am tags tags-recursive \
 	uninstall uninstall-am uninstall-info-am
 
-
-#EXTRA_DIST = 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:
