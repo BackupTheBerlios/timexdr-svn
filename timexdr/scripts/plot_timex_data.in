@@ -33,8 +33,8 @@ usage() {
   echo "Usage: $( basename $0 ) [OPTIONS] file1 [file2]"
   echo "Options:"
   echo -e "-f <format>\tFormat specifies what kind of output will be produced. "
-  echo -e "\t\tDefault is x11. Available formats: ps (postscript), x11." 
-  echo -e "-l <layout>\tPage layout [landscape|portrait]. Default is landscape."
+  echo -e "\t\tDefault is x11. Available formats: png, ps (postscript), x11." 
+  echo -e "-l <layout>\tPS page layout [landscape|portrait]. Default is landscape."
   echo -e "-m \t\tPlot the GPS map based on waypoints."
   echo -e "-o <out_file>\tSpecify a name for the output file."
   echo -e "-t <map_title>\tMap title is used to label the GPS waypoing (map) plot" 
@@ -146,6 +146,13 @@ create_output() {
   local GREP="grep -v -e session -e Time -e Corrupted -e Missing -e GMT"
   
   case $out_type in
+    png) out_ext=".png"
+         get_out_name
+         cat > $DEF_FILE << EOF
+set terminal png font "Vera" 8 enhanced size 800,600
+set output "$out_file"
+EOF
+	 ;;
     ps|postscript) 		
          out_ext=".ps" 
 	 get_out_name
@@ -153,7 +160,7 @@ create_output() {
 set terminal postscript $orientation enhanced color 10
 set output "$out_file"
 EOF
-	 			;;
+	 ;;
     x11) echo ""  > $DEF_FILE
          OPTS="-persist"	;;
     *)   echo "Output format $out_type is not recognized."
