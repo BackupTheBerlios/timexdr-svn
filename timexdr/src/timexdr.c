@@ -26,11 +26,9 @@
 #include "common.h"
 #include "timexdr.h"
 
-
-//static const char *version = "version 1.0, April 14, 2005";
 static const char *version = "version " VERSION;
 
-int verbose = 1;
+int clear_eeprom = 0;      /* Clear the EEPROM on device close if set */
 
 /* Odometer quirks: 
  *   dist_offset - to eliminate non-zero session offset
@@ -73,6 +71,7 @@ static void timexdr_usage(const char *program) {
 	  "  -f, --file\t\tCreate file(s) YYYYMMDD_HHMMSS-HHMMSS.{gps,hrm} for the\n"
 	  "\t\t\tsession data in the working directory.\n" 
 	  "  -h, --help\t\tDisplay this usage information.\n"
+	  "  -i, --info\t\tDisplay information about the device.\n"
 	  "  -m, --miles\t\tShow distance and speed in miles and mph, respectively.\n"
 	  "\t\t\tThe default units are kilometers and kph.\n"
 	  "  -t, --time-sync\tSynchronize device's clock with system local time.\n"
@@ -183,20 +182,6 @@ static usb_dev_handle *timexdr_open(void) {
   setuid(getuid());
 
   return udev;
-}
-
-/* 
- * Releases the interface and closes the device.
- */
-static void timexdr_close(usb_dev_handle *dev) {
-  int ret;
-
-  if ( (ret = usb_release_interface(dev, 0)) < 0 ) {
-    fatal("Couldn't release device");
-  }
-  if (verbosity > 5) printf("Release interface status: %d\n", ret);
-
-  usb_close(dev);
 }
 
 /*
@@ -1074,6 +1059,27 @@ static void print_session(const struct tdr_session *session) {
   }
 }
 
+/* 
+ * Releases the interface and closes the device.
+ */
+static void timexdr_close(usb_dev_handle *dev) {
+  int ret;
+  unsigned char buf[RESPONSE_BUFSIZE];
+
+  if (clear_eeprom) {
+    if (verbosity) printf("Deleting all data stored in EEPROM\n");
+    ret = timex_ctrl(dev, EEPROM_CLEAR, DEFAULT_MICRO, buf, RESPONSE_BUFSIZE);
+    clear_eeprom = 0;
+  }
+
+  if ( (ret = usb_release_interface(dev, 0)) < 0 ) {
+    fatal("Couldn't release device");
+  }
+  if (verbosity > 5) printf("Release interface status: %d\n", ret);
+
+  usb_close(dev);
+}
+
 /* -------------------------------------------------------------------------
  *   Main program.
  * -------------------------------------------------------------------------
@@ -1081,7 +1087,7 @@ static void print_session(const struct tdr_session *session) {
 int main(int argc, char *argv[])
 {
   struct usb_dev_handle *dev;
-  int i, clear_eeprom=0, full_eeprom_listing=0;
+  int i, full_eeprom_listing=0;
   unsigned long int bytes, bufsize, timeout;
   unsigned char buf[RESPONSE_BUFSIZE], *databuf;
   char c, choice='h';                   /* Default choice='h' */
@@ -1093,6 +1099,7 @@ int main(int argc, char *argv[])
     {"eeprom-dump", 2, NULL, 'e'},
     {"file", 0, NULL, 'f'},
     {"help",  0, NULL, 'h'},
+    {"info",  0, NULL, 'i'},
     {"miles", 0, NULL, 'm'},
     {"time-sync", 0, NULL, 't'},
     {"verbose", 2, NULL, 'v'},          /* Takes an optional argument */
@@ -1108,7 +1115,7 @@ int main(int argc, char *argv[])
   //  sfp = stdout;
 
   while (1) {
-    c = getopt_long(argc, argv, "acd::e::fhmtv::V",
+    c = getopt_long(argc, argv, "acd::e::fhimtv::V",
 		    long_options, NULL);
 
     if (c == -1) {
@@ -1117,6 +1124,7 @@ int main(int argc, char *argv[])
     
     switch (c) {
     case 'a':
+    case 'i':
       choice = c;
       break;
 
@@ -1177,8 +1185,21 @@ int main(int argc, char *argv[])
     }
   }
 
+  if (((verbosity) && (choice != 'h')) || (choice == 'i')) {
+    printf("Timex Data Recorder control program version " VERSION "\n");
+    printf("Report bugs to <"PACKAGE_BUGREPORT">\n\n");
+  }
+
   switch (choice) {
 
+  case 'i':            /* Display device info */
+    if (!verbosity) verbosity = 1;
+    dev = timexdr_open();
+    get_fw_version(dev);
+    get_eeprom_size(dev);
+    bytes = eeprom_usage(dev);
+    timexdr_close(dev);
+    break;
   case 'a':
   case 'd':
   case 'e':
@@ -1255,12 +1276,13 @@ int main(int argc, char *argv[])
     break;
   }
 
-  /* This should be the last action of the program in case we want to 
-   * download the data before clearing the EEPROM
+  /* If the -c option was the only task requested, we need to open the device
+   * and clear the EEPROM. If other tasks were requested (like -a, -d, or -e),
+   * the memory would have been already cleaned (if -c was also specified)
    */
   if (clear_eeprom) {
     dev = timexdr_open();
-    i = timex_ctrl(dev, EEPROM_CLEAR, DEFAULT_MICRO, buf, RESPONSE_BUFSIZE);
+    //    i = timex_ctrl(dev, EEPROM_CLEAR, DEFAULT_MICRO, buf, RESPONSE_BUFSIZE);
     timexdr_close(dev);
   }
 
