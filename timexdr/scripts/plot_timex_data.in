@@ -111,8 +111,9 @@ get_hrm_avg() {
 get_gps_avg() {
 # Returns distance; average speed, average pace (minutes and seconds), latitude,
 # longitude, and altitude; minimum and maximum latitude and longitude
-  gawk '{ alt += $7 ; lat += $10 ; lon += $11 ;
-          if (NR == 1)
+  gawk '{ if ($3 > 0)
+  	  { alt += $7 ; lat += $10 ; lon += $11 ; counter += 1; }
+          if (counter == 1)
 	  { lat_min = $10 ; lat_max = $10 ; lon_min = $11 ; lon_max = $11
           } else
 	  { if (lat_min > $10) lat_min = $10
