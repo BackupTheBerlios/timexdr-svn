@@ -95,15 +95,15 @@ rte_point() {
 # Process options
 while getopts ":a:d:hi:n:o:z:" OPT; do
   case $OPT in
-   a)  AUTHOR="$OPTARG"	    ;;
-   d)  ROUTE_DESC="$OPTARG" ;;
-   h)  usage             ;;
-   i)  ROUTE_ID="$OPTID" ;;
-   n)  ROUTE_NAME="$OPTARG" ;;
-   o)  out_file=$OPTARG ;;
-   z)  TIME_ZONE=$OPTARG     ;;
+   a)  AUTHOR="$OPTARG"	    	;;
+   d)  ROUTE_DESC="$OPTARG" 	;;
+   h)  usage             	;;
+   i)  ROUTE_ID="$OPTARG" 	;;
+   n)  ROUTE_NAME="$OPTARG" 	;;
+   o)  out_file=$OPTARG 	;;
+   z)  TIME_ZONE=$OPTARG     	;;
    *)  echo "Unimplemented option -${OPTARG}"
-       usage            ;;
+       usage            	;;
   esac
 done
   

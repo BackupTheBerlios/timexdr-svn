@@ -1,4 +1,6 @@
 2006-09-08  Jan Merka <merka@highsphere.net>
+	* Version 1.22 released (1.21 had a broken plot_timex_data script and 
+	a few typos) 
 	* Longitude is now negative on the western hemisphere.
 	* Conversion script from the GPS text format to GPX standard created 
 	(gps2gpx).
