@@ -5,6 +5,8 @@ INCLUDES	= -I$(top_builddir) -I$(top_builddir)/include
 bin_PROGRAMS	= timexdr
 timexdr_SOURCES = timexdr.c
 
-install-exec-hook:
-	chown root $(bindir)/timexdr
-	chmod u+s $(bindir)/timexdr
+# Deprecated (not needed if using udev)
+#
+#install-exec-hook:
+#	chown root $(bindir)/timexdr
+#	chmod u+s $(bindir)/timexdr

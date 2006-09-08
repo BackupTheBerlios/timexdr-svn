@@ -1,3 +1,5 @@
+Content-type: text/html
+
 <HTML><HEAD><TITLE>Manpage of TIMEXDR</TITLE>
 </HEAD><BODY>
 <H1>TIMEXDR</H1>
@@ -158,11 +160,16 @@ automatically.
 
 <DD>
 This file (device node) is provided automatically by udev. However, udev
-configurations vary and a node of a different name can be created.
+configurations vary and a node of a different name can be created. A udev rule
+like 
+<DT><DD>
+<TT>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</TT>SUBSYSTEM==&quot;usb_device&quot;, SYSFS{product}==&quot;Timex Data Recorder&quot;, PROGRAM=&quot;/bin/sh -c 'K=%k; K=$${K#usbdev}; printf bus/usb/%%03i/%%03i $${K%%%%.*} $${K#*.}'&quot;, NAME=&quot;%c&quot;, SYMLINK+=&quot;timexdr&quot;, MODE=&quot;0664&quot;, GROUP=&quot;users&quot;<BR>
+<DT><DD>
+gives read/write access to group users and creates a symbolic link /dev/timexdr to the device. Using udev is recommended.
 <DT><B>/proc/bus/usb/BBB/DDD</B>
 
 <DD>
-If /proc/bus/usb appears empty, and a host controller driver has been
+Alternative to using udev is employing usbfs, not needed if using udev. If /proc/bus/usb appears empty, and a host controller driver has been
 loaded, then you need to mount the usbfs filesystem. Issue the command 
 (as root):
 <DT><DD>
@@ -177,8 +184,9 @@ to /etc/fstab. The usbfs support has to be compiled in the kernel.
 <A NAME="lbAH">&nbsp;</A>
 <H2>NOTES</H2>
 
-The utility is installed SETUID and the root privileges are dropped 
-immediately after the device is initialized. 
+The utility can be installed SETUID and the root privileges are then dropped 
+immediately after the device is initialized. However, it is recommended to use
+udev so the SETUID installation is avoided.
 <A NAME="lbAI">&nbsp;</A>
 <H2>BUGS</H2>
 
@@ -206,6 +214,6 @@ timexdr was written by Jan Merka &lt;<A HREF="mailto:merka@highsphere.net">merka
 This document was created by
 <A HREF="http://localhost/cgi-bin/man/man2html">man2html</A>,
 using the manual pages.<BR>
-Time: 04:22:05 GMT, April 02, 2006
+Time: 05:32:49 GMT, September 08, 2006
 </BODY>
 </HTML>

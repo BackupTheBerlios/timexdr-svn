@@ -29,8 +29,16 @@ timexdr needs a write access to /dev/bus/usb/BBB/DDD or /proc/bus/usb/BBB/DDD,
 depending whether udev or usbfs is used. BBB is the USB bus number and DDD 
 device number of the attached device. BBB and DDD can change every time the 
 device is attached to the USB port. Therefore, you shouldn't rely on the BBB 
-and DDD numbers. Timexdr is installed SETUID to make sure it can initialize
-the device and the root privileges are dropped immediately after that.
+and DDD numbers. Timexdr can be installed SETUID to make sure it can initialize
+the device and the root privileges would be dropped immediately after that.
+However, it is recommended to use some means of adjusting user access to 
+the device, for example udev. The followin udev rule will set access mode to
+read/write for group users so anybody in that group can use timexdr:
+
+SUBSYSTEM=="usb_device", SYSFS{product}=="Timex Data Recorder", PROGRAM="/bin/sh -c 'K=%k; K=$${K#usbdev}; printf bus/usb/%%03i/%%03i $${K%%%%.*} $${K#*.}'", NAME="%c", SYMLINK+="timexdr", MODE="0664", GROUP="users"
+
+The rule belongs to one of the rules files in /etc/udev/rules.d/. Note that
+a symbolic link /dev/timexdr is also created when the device is plugged in.
 
 4. USAGE
 --------
@@ -39,16 +47,15 @@ See the manual page:
 
 	man timexdr
 
-If you are wondering how do you plot the data, you are on your own for now
-although many utilities exist that could help you to display the data. 
-As a part of the source package, you will find a script plot_session.gri 
-which creates a Postscript file showing your excersise data. This script 
-requires GRI plotting language to be installed (homepage is 
-http://gri.sourceforge.net).
+If you are wondering how do you plot the data, timexdr package provides couple
+basic utilities for displaying the recorded data:
 
-To plot your HRM and GPS session use the following command:
+	plot_timex_data
+	plot_timex_session.gri
 
-	gri plot_session.gri 20050411_081000-090000.hrm 20050411_081000-090000.gps
+It is recommended to use the first one because the gri script is not 
+developped anymore.
 
-Substitute files 20050411_081000-090000.{gps,hrm} with your own recorded 
-sessions. The Postscript image will now be stored in the file plot_session.ps. 
+The gps2gpx script converts *.gps files to the GPS Exchange Format (GPX) so the 
+recorded route can be used by other applications or GPS devices. More information
+about the GPX standard can be found at http://www.topografix.com/gpx.asp.

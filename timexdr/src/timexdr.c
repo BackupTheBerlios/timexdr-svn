@@ -896,11 +896,12 @@ static void gps_packet_15(double *split_time, const struct tdr_session *ses,
   lon = (double)((long int) ses->data[bzero+15] +
 		 ((long int) ses->data[bzero+14] << 8 ) +
 		 ((long int) ses->data[bzero+13] << 16 ) ) * LL_UNIT_DEG;
+  lon = ( lon < 180 ) ? lon : lon - 360 ; /* Westerly long. is negative */
   sec   = (double)((int)(ses->data[bzero+16] & 0xfc) >> 2) + 
     (double)((int)(ses->data[bzero+16] & 0x03))*0.25;
 
   time2str(time_str, *split_time);
-  if (fprintf(sfp, "%s\t0x%x\t0x%x\t0x%x\t%5.1f\t%9.3f\t%7.1f\t%4d\t%4d\t%14.9f\t%14.9f\t%5.2f\n", 
+  if (fprintf(sfp, "%s\t0x%x\t0x%x\t0x%x\t%5.1f\t%9.3f\t%7.1f\t%4d\t%4d\t%14.9f\t%15.9f\t%5.2f\n", 
 	      time_str, status, acq, battery, 
 	      unit_conv(speed), unit_conv(dist),
 	      alt, htrue, hmag, lat, lon, sec) < 0) {

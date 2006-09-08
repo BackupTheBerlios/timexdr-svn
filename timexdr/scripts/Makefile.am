@@ -1,7 +1,8 @@
 # Makefile for timexdr/scripts
 #
 
-sbin_SCRIPTS = plot_timex_data
+sbin_SCRIPTS = plot_timex_data		\
+	       gps2gpx
 
 scriptsdatadir = @SCRIPTS_DIR@
 

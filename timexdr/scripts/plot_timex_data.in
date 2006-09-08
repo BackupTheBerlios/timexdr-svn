@@ -133,7 +133,7 @@ get_gps_avg() {
 		# Print total distance; average speed, pace, 
 		# latitude, longitude, and altitude;
 		# minimum and maximum latitude and longitude
-		printf "%8.3f %6.1f %4d %4d %8.3f %8.3f %8.1f %14.9f %14.9f %14.9f %14.9f\n",
+		printf "%8.3f %6.1f %4d %4d %8.3f %9.3f %8.1f %14.9f %14.9f %15.9f %15.9f\n",
 		        distance, speed, pace_m, pace_s,
 		        lat/NR, lon/NR, alt/NR,
 		        lat_min, lat_max, lon_min, lon_max	;
