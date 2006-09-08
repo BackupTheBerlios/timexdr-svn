@@ -1,3 +1,4 @@
+# $Id$
 # Plot waypoints (a "map") and a Dist-Altitude graph
 
 # Set up the size and origin before multiplot mode

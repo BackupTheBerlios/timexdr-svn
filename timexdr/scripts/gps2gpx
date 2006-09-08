@@ -1,6 +1,7 @@
 #!/bin/bash
 # Convert timexdr text *.gps files into XML *.gpx format.
 # Written by Jan Merka, 2006.
+#
 # $Id$
 
 TMP_FILE=/tmp/$( basename $0 )_$$.tmp

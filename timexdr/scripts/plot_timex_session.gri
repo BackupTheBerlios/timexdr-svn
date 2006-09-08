@@ -1,3 +1,4 @@
+# $Id$
 # Plot recorded HRM and/or GPS sessions. Each session should be stored in 
 # a file which is provided as a command line argument to this script.
 #

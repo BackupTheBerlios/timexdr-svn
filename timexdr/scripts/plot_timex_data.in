@@ -4,6 +4,7 @@
 # First, the data have to be downloaded and saved to files *.hrm *.gps using
 # the timexdr utility.
 #  
+# $Id$
 
 # Default values
 plot_hrm=0

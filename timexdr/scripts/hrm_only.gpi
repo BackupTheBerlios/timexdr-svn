@@ -1,4 +1,5 @@
 #!/usr/bin/gnuplot -persist
+# $Id$
 
 # Set default ranges
 set xrange [0:*]
