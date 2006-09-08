@@ -859,14 +859,14 @@ static void gps_packet_15(double *split_time, const struct tdr_session *ses,
   if (dist_offset < 0) {
     switch (dist_units) {
     case 0:          /* Imperial units: miles */
-      if (fprintf(sfp, "  Time\t\tStatus\tACQ\tBAT\tV [mph]\tD [miles]\tAlt[ft]\tHt\tHm\tLatitude [rad]\tLongitude [rad]\tsec\n")
+      if (fprintf(sfp, "  Time\t\tStatus\tACQ\tBAT\tV [mph]\tD [miles]\tAlt[ft]\tHt\tHm\tLatitude [deg]\tLongitude [deg]\tsec\n")
 	  < 0) {
 	fatal("Error writing to a file");
       }
       break;
     case 1:          /* SI units: kilometers */
     default:
-      if (fprintf(sfp, "  Time\t\tStatus\tACQ\tBAT\tV [kph]\t   D [km]\tAlt [m]\tHt\tHm\tLatitude [rad]\tLongitude [rad]\tsec\n")
+      if (fprintf(sfp, "  Time\t\tStatus\tACQ\tBAT\tV [kph]\t   D [km]\tAlt [m]\tHt\tHm\tLatitude [deg]\tLongitude [deg]\tsec\n")
 	  < 0) {
 	fatal("Error writing to a file");
       }
