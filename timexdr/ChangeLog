@@ -1,3 +1,13 @@
+2006-09-08  Jan Merka <merka@highsphere.net>
+	* Longitude is now negative on the western hemisphere.
+	* Conversion script from the GPS text format to GPX standard created 
+	(gps2gpx).
+	* Removed setuid installation hook - timexdr should rely on udev or 
+	some other mechanism to gain access to the device. Documentation 
+	updated.
+	* Gnuplot plotting scripts (plot_timex_data).
+	* Added PNG driver to plot_timex_data.
+
 2006-03-23  Jan Merka <merka@highsphere.net>
 	* Modified Makefile to install the executable setuid
 	* timexdr now drops root privileges immediately after device
