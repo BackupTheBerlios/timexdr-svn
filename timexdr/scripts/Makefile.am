@@ -11,7 +11,7 @@ dist_scriptsdata_DATA = plot_timex_session.gri	\
 		    	hrm_gps.gpi		\
 		    	hrm_only.gpi	
 		    
-#EXTRA_DIST = plot_timex_data.skel
+EXTRA_DIST = gps2gpx
 
 #plot_timex_data: plot_timex_data.skel
 #	cat $(srcdir)/plot_timex_data.skel | sed 
