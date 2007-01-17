@@ -1,0 +1,219 @@
+#!/bin/bash
+# Convert timexdr text *.gps files into Garmin XML *.hst format.
+# Written by Jan Merka, 2007.
+#
+# $Id: gps2gpx 57 2006-09-08 21:22:43Z merka $
+
+TMP_FILE=/tmp/$( basename $5 )_$$.tmp
+#TIME_ZONE=$( date +%:z )
+FIX_TYPE=( "none" "none" "2d" "3d" )
+ROUTE_NAME="timexdr"
+ROUTE_DESC="Recorded by Timex Data Recorder"
+ROUTE_ID="1"
+AUTHOR=
+
+usage() {
+  echo "Convert timexdr GPS data format to Garming HST XML format."
+  echo
+  echo "Usage: $( basename $0 ) [OPTIONS] file1"
+  echo "Options:"
+#  echo -e "  -a <author>\tThe person or organization who created the HST file."
+#  echo -e "  -d <desc>\tA text description of the recorded route."
+  echo -e "  -h\t\tDisplay usage information (this message)." 
+#  echo -e "  -i <number>\tGPS route number [$ROUTE_ID]."
+#  echo -e "  -n <name>\tGPS route name [$ROUTE_NAME]"
+#  echo -e "  -o <out_file>\tSpecify a name for the output file."
+  echo -e "  -z <tzone>\tProvide time zone for the GPS data if different"
+  echo -e "\t\tfrom localtime on the computer. Example, '-06:00' or '+05:00'." 
+  echo
+  echo "File 'file1' holds timexdr GPS (*.gps) data."
+  echo "The HST data are send to standard output."
+  exit 1
+}
+
+get_file_type() {
+  while [ $# -gt 0 ]; do
+    [ -f "$1" ]  ||  ( echo "Input file $1 does not exist." ; exit 1 )
+    if grep -q "HRM" "$1" 2>/dev/null ; then
+	echo "HRM"
+    elif grep -q "GPS" "$1" 2>/dev/null ; then
+	echo "GPS"
+    fi
+    shift 1
+  done
+}
+
+hst_header() {
+  echo "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>"
+  echo '<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v1 http://www.garmin.com/xmlschemas/TrainingCenterDatabasev1.xsd">'
+  echo "<History>"
+  echo "<Running Name=\"Running\">"
+  echo "<Run>"
+}
+
+hst_lap_header() {
+# starttime stoptime totaltime minlon maxlon minlat maxlat distance maxspeed
+  tail -n 1 $TMP_FILE  |  cut -f 1,3,8,9  |  
+  while read starttime totaltime distance maxspeed
+  do 
+  	echo "<Lap StartTime=\"${starttime}${TIME_ZONE:-Z}\">"
+  	echo " <TotalTimeSeconds>${totaltime}</TotalTimeSeconds>"
+  	echo " <DistanceMeters>${distance}</DistanceMeters>"
+  	echo " <MaximumSpeed>${maxspeed}</MaximumSpeed>"
+	echo " <Calories>0</Calories>"
+	echo " <Intensity>Active</Intensity>"
+  	echo " <TriggerMethod>Time</TriggerMethod>"
+  	echo " <Track>"
+  done
+}
+
+hst_lap_tail() {
+  echo " </Track>"
+  echo "</Lap>"
+}
+
+hst_tail() {
+  echo "</Run>"
+  echo "</Running>"
+  echo "</History>"
+  echo "</TrainingCenterDatabase>"
+}
+
+hst_trackpoint() {
+# datetime lon lat alt spd pace dst acq
+  echo -e "<Trackpoint>"
+  echo -e "\t<Time>${datetime}${TIME_ZONE:-Z}</Time>"
+  echo -e "\t<Position>"
+  echo -e "\t\t<LatitudeDegrees>${lat}</LatitudeDegrees>"
+  echo -e "\t\t<LongitudeDegrees>${lon}</LongitudeDegrees>"
+  echo -e "\t</Position>"
+  echo -e "\t<AltitudeMeters>${alt}</AltitudeMeters>"
+  echo -e "\t<DistanceMeters>${dst}</DistanceMeters>"
+  echo -e "\t<SensorState>Present</SensorState>"
+  echo -e "</Trackpoint>"
+}
+
+[ $# -eq 0 ]  &&  usage
+
+# Process options
+while getopts ":a:d:hi:n:o:z:" OPT; do
+  case $OPT in
+   a)  AUTHOR="$OPTARG"	    	;;
+   d)  ROUTE_DESC="$OPTARG" 	;;
+   h)  usage             	;;
+   i)  ROUTE_ID="$OPTARG" 	;;
+   n)  ROUTE_NAME="$OPTARG" 	;;
+   o)  out_file=$OPTARG 	;;
+   z)  TIME_ZONE=$OPTARG     	;;
+   *)  echo "Unimplemented option -${OPTARG}"
+       usage            	;;
+  esac
+done
+  
+# Decrement the argument pointer so it points to next argument. $1 now 
+# references the first non option item supplied on the command line if
+# one exists.
+shift $(( $OPTIND - 1 ))
+
+# Check the data file
+[ $( get_file_type "$1" ) == "GPS" ]  ||  usage
+ 
+grep -v -e "GMT" -e "packet"  "$1"  |
+gawk '{ 
+  counter += 1; 
+  if (counter == 1) { 
+  	split($3, ymd, "-"); 
+  	split($4, hms, ":"); 
+	split($6, eymd, "-");
+	split($7, ehms, ":");
+
+	# Add 5 hours (EST time zone) so the time is GMT (ugly hack)
+	est_zone=5;
+	hms[1] = hms[1]+est_zone;
+	ehms[1] = ehms[1]+est_zone;
+
+	# Calculate total time in seconds
+	# assuming the total is less than 24 hours
+	if (eymd[3] < ymd[3]) {
+		days = 1;
+	} else {
+		days = eymd[3] - ymd[3];
+	}
+	t0 = hms[1]*3600 + hms[2]*60 + hms[3];
+	t1 = ehms[1]*3600 + ehms[2]*60 + ehms[3];
+	seconds = days*86400 + t1 - t0;	
+  }; 
+  if (counter > 2) { 
+	split($1, time, ":"); 
+	dt_sec = time[3] + hms[3]; 
+	dt_min = time[2] + hms[2]; 
+	dt_hr  = time[1] + hms[1]; 
+	dt_day = ymd[3] ; 
+	dt_month = ymd[2]; 
+	dt_yr = ymd[1] ; 
+	lon = $11;
+	lat = $10;
+	alt = $7;
+	dist = $6*1000;
+	spd = $5;
+	if (spd > 0)    { pace = 60/spd } else { pace = 999 };
+	if (pace > 999) { pace = 999 };
+	split($3, acq, "x");
+	
+	# Make sure parameters are within limits
+	while (dt_sec >= 60) { dt_sec -= 60; dt_min += 1 }; 
+	while (dt_min >= 60) { dt_min -= 60; dt_hr += 1}; 
+	while (dt_hr >= 24)  { dt_hr -= 24; dt_day += 1 }; 
+	if (lon >= 180)      { lon -= 360 };
+	
+	# Find min and max longitude/latitude, and other parameters
+	if (acq[2] > 0) {
+		cntr2 += 1;
+		if (cntr2 == 1) {
+			minlat = lat;
+			maxlat = lat;
+			minlon = lon;
+			maxlon = lon;
+			maxspd = spd;
+		} else {
+			if (minlat > lat) {minlat = lat};
+			if (maxlat < lat) {maxlat = lat};
+			if (minlon > lon) {minlon = lon};
+			if (maxlon < lon) {maxlon = lon};
+			if (maxspd < spd) {maxspd = spd};
+			}
+	}
+
+	#print $1; 
+	printf "%4.4d-%2.2d-%2.2dT%2.2d:%2.2d:%2.2d\t", 
+		dt_yr, dt_month, dt_day, dt_hr, dt_min, dt_sec	;
+	printf "%15.9f\t%14.9f\t%7.1f\t%5.1f\t%9.5f\t%10.3f\t%1.1d\n",
+		lon, lat, alt, spd, pace, dist, acq[2] ; 
+   };
+ } END { 
+   # Start time
+   printf "%4.4d-%2.2d-%2.2dT%2.2d:%2.2d:%2.2d\t",
+   	ymd[1], ymd[2], ymd[3], hms[1], hms[2], hms[3] ;
+   # Stop time
+   printf "%4.4d-%2.2d-%2.2dT%2.2d:%2.2d:%2d\t",
+   	eymd[1], eymd[2], eymd[3], ehms[1], ehms[2], ehms[3] ;
+   # Total seconds
+   printf "%10.2f\t", seconds;
+   # Other parameters
+   printf "%15.9f\t%15.9f\t%14.9f\t%14.9f\t%10.3f\t%5.1f\n",
+   	minlon, maxlon, minlat, maxlat, dist, maxspd ;
+ }' > $TMP_FILE 
+
+hst_header
+hst_lap_header
+
+# Remove the last row before parsing the TMP_FILE because the last
+# row holds summary parameters displayed in the header
+sed -i "\$d"  $TMP_FILE
+cat           $TMP_FILE  |
+while read  datetime lon lat alt spd pace dst acq; do
+  hst_trackpoint
+done
+hst_lap_tail
+hst_tail
+rm  -f $TMP_FILE

@@ -56,13 +56,15 @@ print_bounds() {
 }
 
 gpx_header() {
-  echo "<?xml version=\"1.1\"?>"
-  echo "<gpx version=\"1.1\" creator=\"timexdr\">"
+  echo "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>"
+  echo "<gpx xmlns=\"http://www.topografix.com/GPX/1/1\" version=\"1.1\" creator=\"$( timexdr -V )\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd\">"
+  echo "<metadata>"
   echo "<desc>${ROUTE_DESC}</desc>"
   [ "x${AUTHOR}" == "x" ]  ||
-  echo "<author>${AUTHOR}</author>"
+  echo "<author><name>${AUTHOR}</name></author>"
   echo "<time>$( date -u +%FT%XZ )</time>"
   print_bounds
+  echo "</metadata>"
 }
 
 gpx_tail() {
@@ -70,24 +72,26 @@ gpx_tail() {
 }
 
 route_header() {
-  echo "<rte>"
+  echo "<trk>"
   echo "<name>${ROUTE_NAME}</name>"
   echo "<desc>${ROUTE_DESC}</desc>"
   echo "<src>Timex Data Recorder</src>"
   echo "<number>${ROUTE_ID}</number>"
+  echo "  <trkseg>"
 }
 
 route_tail() {
-  echo "</rte>"
+  echo "  </trkseg>"
+  echo "</trk>"
 }
 
 rte_point() {
 #	datetime lon lat alt spd pace dst acq
-  echo "<rtept lat=\"$lat\" lon=\"$lon\">"
+  echo "<trkpt lat=\"$lat\" lon=\"$lon\">"
   echo " <ele>$alt</ele>"
   echo " <time>${datetime}${TIME_ZONE:-Z}</time>"
   echo " <fix>${FIX_TYPE[$acq]}</fix>"
-  echo "</rtept>"
+  echo "</trkpt>"
 }
 
 [ $# -eq 0 ]  &&  usage
