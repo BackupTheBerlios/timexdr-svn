@@ -23,9 +23,9 @@ map_title="Path"
 # Scripts
 prefix=@prefix@
 datarootdir=@datarootdir@
-HRM_ONLY_SCRIPT=@SCRIPTS_DIR@/timexdr/scripts/hrm_only.gpi
-HRM_GPS_SCRIPT=@SCRIPTS_DIR@/timexdr/scripts/hrm_gps.gpi
-GPS_MAP_SCRIPT=@SCRIPTS_DIR@/timexdr/scripts/gps_map.gpi
+HRM_ONLY_SCRIPT=@SCRIPTS_DIR@/hrm_only.gpi
+HRM_GPS_SCRIPT=@SCRIPTS_DIR@/hrm_gps.gpi
+GPS_MAP_SCRIPT=@SCRIPTS_DIR@/gps_map.gpi
 
 # ---------------
 
