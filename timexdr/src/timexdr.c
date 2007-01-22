@@ -547,6 +547,8 @@ static void squeeze_data(unsigned char *databuf,
 static struct tdr_session *split_data(unsigned char *databuf) {
   struct tdr_session *first, *prev, *next;
   unsigned long int pstart=TIMEXDR_FIRSTSESSION, pend;
+  struct tm stm;
+  time_t tmp;
   int i;
 
   first = NULL;
@@ -582,6 +584,16 @@ static struct tdr_session *split_data(unsigned char *databuf) {
     next->header.min = (unsigned int) databuf[pstart+2];
     next->header.sec = (unsigned int) databuf[pstart+1];
     
+    /* Calculate start time of the session in time_t format */
+    stm.tm_year = next->header.year - 1900;
+    stm.tm_mon = next->header.month - 1;
+    stm.tm_mday = next->header.day;
+    stm.tm_hour = next->header.hour;
+    stm.tm_min = next->header.min;
+    stm.tm_sec = next->header.sec;
+
+    next->start = mktime(&stm);
+    
     next->footer.dev = databuf[pend-7];
     next->footer.year = (unsigned int) TDR_YR(databuf[pend-1]);
     next->footer.month = (unsigned int) TDR_MD(databuf[pend-2]);
@@ -606,20 +618,40 @@ static struct tdr_session *split_data(unsigned char *databuf) {
   return (i == 0) ? NULL : first;
 }
 
-#define TIME_STR_LENGTH                    9      /* in bytes */
+#define TIME_STR_LENGTH                    27      /* in bytes */
 static char time_str[TIME_STR_LENGTH];
 
 /*
  * Converts seconds into a time string 
+ * *str_time - output string
+ * st - session start time
+ * seconds - elapsed session time in seconds
  */
-static void time2str(char *str_time, double seconds) {
-  long int hr, min;
-  double sec; 
+static void time2str(char *str_time, const time_t st, double seconds) {
+  double tmp;
+  time_t tsec;
+  struct tm t;
+  long int fsec; 
+  char s1[TIME_STR_LENGTH], s2[TIME_STR_LENGTH];
 
-  hr  = seconds / 3600;
-  min = (seconds - hr*3600) / 60;
-  sec = fmod(seconds,60);
-  sprintf(str_time, "%02d:%02d:%05.2f", hr, min, sec);
+  tsec = st + seconds;
+  fsec = (long int)(modf(seconds, &tmp)*100);
+
+  /* Convert from time_t to tm structure */
+  localtime_r(&tsec, &t);
+  
+  /* Date and time */
+  if (strftime(s1, sizeof(s1), "%F %T", &t) == 0) {
+	  fatal("Time to string conversion error");
+  }
+
+  /* Time zone */
+  if (strftime(s2, sizeof(s2), "%z", &t) == 0) {
+	  fatal("Time to string conversion error");
+  }
+
+  /* Final assembly */
+  sprintf(str_time, "%s.%02d%s", s1, fsec, s2);
 }
 
 /* 
@@ -641,9 +673,10 @@ static void session_header(char *sname, const struct tdr_header *hdr,
 /*
  * Prints information about a packet error
  */
-static void packet_error(double split_time, unsigned char token) {
+static void packet_error(time_t st, double split_time, 
+			unsigned char token) {
   
-  time2str(time_str, split_time);
+  time2str(time_str, st, split_time);
 
   switch (token) {
   case MISSING_PACKET:
@@ -695,7 +728,7 @@ static void close_session_file(void) {
 }
 
 /*
- * Prints HRM session data to stdout.
+ * Prints HRM session data to stdout/file.
  */
 static void hr_session(const struct tdr_session *ses) {
   unsigned long int i;
@@ -703,7 +736,7 @@ static void hr_session(const struct tdr_session *ses) {
   open_session_file(HRM_FILE_EXT, &(ses->header), &(ses->footer));
 
   session_header("HRM session", &(ses->header), &(ses->footer));
-  if (fprintf(sfp, "  Time        HR[bpm]\n") < 0) {
+  if (fprintf(sfp, "             Time             HR[bpm]\n") < 0) {
     fatal("Error writing to a file");
   }
 
@@ -711,10 +744,10 @@ static void hr_session(const struct tdr_session *ses) {
     switch (ses->data[i]) {
     case MISSING_PACKET:
     case CORRUPTED_PACKET:
-      packet_error(i * TIME_STEP_HRM, ses->data[i]);
+      packet_error(ses->start, i * TIME_STEP_HRM, ses->data[i]);
       break;
     default:
-      time2str(time_str, i * TIME_STEP_HRM);
+      time2str(time_str, ses->start, i * TIME_STEP_HRM);
       if (fprintf(sfp, "%s\t%3u\n", time_str, ses->data[i]) < 0) {
 	fatal("Error writing to a file");
       }
@@ -769,7 +802,8 @@ static void dist_corrections(double *dist){
 /*
  * Decodes and prints GPS packet type 1 (Status, Speed and Distance)
  */
-static void gps_packet_1(double *split_time, unsigned char status_byte, 
+static void gps_packet_1(time_t st, double *split_time, 
+                         unsigned char status_byte, 
 			 unsigned char hsb, unsigned char lsb_speed, 
 			 unsigned char lsb_odo) {
   
@@ -779,14 +813,14 @@ static void gps_packet_1(double *split_time, unsigned char status_byte,
   if (dist_offset < 0) {
     switch (dist_units) {
     case 0:          /* Imperial units: miles */
-      if (fprintf(sfp, "  Time\t\tStatus\tACQ\tBAT\tV [mph]\tD [miles]\n")
+      if (fprintf(sfp, "             Time\t\tStatus\tACQ\tBAT\tV [mph]\tD [miles]\n")
 	  < 0) {
 	fatal("Error writing to a file");
       }
       break;
     case 1:          /* SI units: kilometers */
     default:
-      if (fprintf(sfp, "  Time\t\tStatus\tACQ\tBAT\tV [kph]\t   D [km]\n")
+      if (fprintf(sfp, "             Time\t\tStatus\tACQ\tBAT\tV [kph]\t   D [km]\n")
 	  < 0) {
 	fatal("Error writing to a file");
       }
@@ -803,8 +837,8 @@ static void gps_packet_1(double *split_time, unsigned char status_byte,
 		  ( ((long int) (hsb & 0x0f)) << 8 )) * DIST_UNIT;
   dist_corrections(&dist);
 
-  time2str(time_str, *split_time);
-  if (fprintf(sfp, "%s\t0x%x\t0x%x\t0x%x\t%5.1f\t%9.3f\n", 
+  time2str(time_str, st, *split_time);
+  if (fprintf(sfp, "%s\t%u\t%u\t%u\t%5.1f\t%9.3f\n", 
 	      time_str, status, acq, battery, 
 	      unit_conv(speed), unit_conv(dist)) < 0) {
     fatal("Error writing to a file");
@@ -816,7 +850,7 @@ static void gps_packet_1(double *split_time, unsigned char status_byte,
 /*
  * Decodes and prints GPS packet type 4 (Time and Date)
  */
-static void gps_packet_4(double *split_time, unsigned char mo_yr, 
+static void gps_packet_4(time_t st, double *split_time, unsigned char mo_yr, 
 			 unsigned char mi_da, unsigned char da_hr, 
 			 unsigned char bsec) {
   int year, month, day, hour, min;
@@ -833,7 +867,7 @@ static void gps_packet_4(double *split_time, unsigned char mo_yr,
   min   = (int)(mi_da & 0xfc) >> 2;
   sec   = (float)((int)(bsec & 0xfc) >> 2) + (float)((int)(bsec & 0x03))*0.25;
   
-  time2str(time_str, *split_time);
+  time2str(time_str, st, *split_time);
   if (fprintf(sfp, "%s\t%i-%02i-%02i %2i:%02i:%05.2f GMT\n", time_str, 
 	      year, month, day, hour, min, sec) < 0) {
     fatal("Error writing to a file");
@@ -848,7 +882,8 @@ static void gps_packet_4(double *split_time, unsigned char mo_yr,
  * with data, bzero is the index of the zero byte of the packet in 
  * ses->data[].
  */
-static void gps_packet_15(double *split_time, const struct tdr_session *ses,
+static void gps_packet_15(time_t st, double *split_time, 
+		          const struct tdr_session *ses,
 			  unsigned long int bzero) {
   unsigned char status, acq, battery;
   /* htrue - true heading
@@ -859,14 +894,14 @@ static void gps_packet_15(double *split_time, const struct tdr_session *ses,
   if (dist_offset < 0) {
     switch (dist_units) {
     case 0:          /* Imperial units: miles */
-      if (fprintf(sfp, "  Time\t\tStatus\tACQ\tBAT\tV [mph]\tD [miles]\tAlt[ft]\tHt\tHm\tLatitude [deg]\tLongitude [deg]\tsec\n")
+      if (fprintf(sfp, "             Time\t\tStatus\tACQ\tBAT\tV [mph]\tD [miles]\tAlt[ft]\tHt\tHm\tLatitude [deg]\tLongitude [deg]\tsec\n")
 	  < 0) {
 	fatal("Error writing to a file");
       }
       break;
     case 1:          /* SI units: kilometers */
     default:
-      if (fprintf(sfp, "  Time\t\tStatus\tACQ\tBAT\tV [kph]\t   D [km]\tAlt [m]\tHt\tHm\tLatitude [deg]\tLongitude [deg]\tsec\n")
+      if (fprintf(sfp, "             Time\t\tStatus\tACQ\tBAT\tV [kph]\t   D [km]\tAlt [m]\tHt\tHm\tLatitude [deg]\tLongitude [deg]\tsec\n")
 	  < 0) {
 	fatal("Error writing to a file");
       }
@@ -900,8 +935,8 @@ static void gps_packet_15(double *split_time, const struct tdr_session *ses,
   sec   = (double)((int)(ses->data[bzero+16] & 0xfc) >> 2) + 
     (double)((int)(ses->data[bzero+16] & 0x03))*0.25;
 
-  time2str(time_str, *split_time);
-  if (fprintf(sfp, "%s\t0x%x\t0x%x\t0x%x\t%5.1f\t%9.3f\t%7.1f\t%4d\t%4d\t%14.9f\t%15.9f\t%5.2f\n", 
+  time2str(time_str, st, *split_time);
+  if (fprintf(sfp, "%s\t%u\t%u\t%u\t%5.1f\t%9.3f\t%7.1f\t%4d\t%4d\t%14.9f\t%15.9f\t%5.2f\n", 
 	      time_str, status, acq, battery, 
 	      unit_conv(speed), unit_conv(dist),
 	      alt, htrue, hmag, lat, lon, sec) < 0) {
@@ -939,19 +974,19 @@ static void gps_session(const struct tdr_session *ses) {
     
     switch (ses->data[i]) {
     case PACKET_TYPE_ERROR:
-      packet_error(split_time, ses->data[i+1]);
+      packet_error(ses->start, split_time, ses->data[i+1]);
       split_time += TIME_STEP_GPS;
       break;
     case PACKET_TYPE_1:
-      gps_packet_1(&split_time, ses->data[i+1], ses->data[i+2], 
+      gps_packet_1(ses->start, &split_time, ses->data[i+1], ses->data[i+2], 
 		   ses->data[i+3], ses->data[i+4]);
       break;
     case PACKET_TYPE_4:
-      gps_packet_4(&split_time, ses->data[i+1], ses->data[i+2], 
+      gps_packet_4(ses->start, &split_time, ses->data[i+1], ses->data[i+2], 
 		   ses->data[i+3], ses->data[i+4]);
       break;  
     case PACKET_TYPE_15:
-      gps_packet_15(&split_time, ses, i);
+      gps_packet_15(ses->start, &split_time, ses, i);
       break;
     case PACKET_TYPE_2:
     case PACKET_TYPE_3:
@@ -977,6 +1012,8 @@ static void multi_session(const struct tdr_session *session) {
 
   hrm_ses = malloc(sizeof(*hrm_ses));
   gps_ses = malloc(sizeof(*gps_ses));
+
+  hrm_ses->start = (gps_ses->start = session->start);
 
   hrm_ses->prev = (hrm_ses->next = NULL);
   gps_ses->prev = (gps_ses->next = NULL);

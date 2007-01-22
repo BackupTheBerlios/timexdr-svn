@@ -23,9 +23,9 @@ map_title="Path"
 # Scripts
 prefix=@prefix@
 datarootdir=@datarootdir@
-HRM_ONLY_SCRIPT=@SCRIPTS_DIR@/hrm_only.gpi
-HRM_GPS_SCRIPT=@SCRIPTS_DIR@/hrm_gps.gpi
-GPS_MAP_SCRIPT=@SCRIPTS_DIR@/gps_map.gpi
+HRM_ONLY_SCRIPT=@SCRIPTS_DIR@/timexdr/scripts/hrm_only.gpi
+HRM_GPS_SCRIPT=@SCRIPTS_DIR@/timexdr/scripts/hrm_gps.gpi
+GPS_MAP_SCRIPT=@SCRIPTS_DIR@/timexdr/scripts/gps_map.gpi
 
 # ---------------
 
@@ -106,27 +106,40 @@ check_gnuplot() {
 }
 
 get_hrm_avg() {
-  gawk '{ hrm += $2 }
+  gawk '{ hrm += $3 }
   	END { printf "%3d\n", hrm/NR }' $1  
 }
 
 get_gps_avg() {
 # Returns distance; average speed, average pace (minutes and seconds), latitude,
 # longitude, and altitude; minimum and maximum latitude and longitude
-  gawk '{ if ($3 > 0)
-  	  { alt += $7 ; lat += $10 ; lon += $11 ; counter += 1; }
+  gawk '{ if ($4 > 0)
+  	  { alt += $8 ; lat += $11 ; lon += $12 ; counter += 1; }
           if (counter == 1)
-	  { lat_min = $10 ; lat_max = $10 ; lon_min = $11 ; lon_max = $11
+	  { lat_min = $11 ; lat_max = $11 ; lon_min = $12 ; lon_max = $12
           } else
-	  { if (lat_min > $10) lat_min = $10
-	    if (lat_max < $10) lat_max = $10
-	    if (lon_min > $11) lon_min = $11
-	    if (lon_max < $11) lon_max = $11
+	  { if (lat_min > $11) lat_min = $11
+	    if (lat_max < $11) lat_max = $11
+	    if (lon_min > $12) lon_min = $12
+	    if (lon_max < $12) lon_max = $12
 	  }
+	  if (counter == 3) {
+		  split($1, date0, "-");
+		  split($2, tmp, ".");
+		  split(tmp[1], time0, ":");
+		  str = date0[1] " " date0[2] " " date0[3];
+		  str = str " " time0[1] " " time0[2] " " time0[3];
+		  t0 = mktime(str);
+	  };
         }
-  	END {	distance = $6 ; 
-		split($1, hms, ":")     ;
-		time = hms[1] * 3600 + hms[2] * 60 + hms[3]     ;
+  	END {	distance = $7 ; 
+		split($1, date0, "-");
+		split($2, tmp, ".");
+		split(tmp[1], time0, ":");
+		str = date0[1] " " date0[2] " " date0[3];
+		str = str " " time0[1] " " time0[2] " " time0[3];
+		t1 = mktime(str);
+		time = t1 - t0;
 		speed = distance*3600/time                      ;
 		# Calculate pace and split it in minutes and seconds
 		pace = 60/speed                                 ;
@@ -176,15 +189,17 @@ EOF
   
   # Prepare data files for gnuplot. Calculate averages.
   if [ $plot_hrm == 1 ]; then
-	$GREP $hrm_file > ${TEMPDATA}.hrm
+	$GREP $hrm_file  |  
+	sed 's/\(..:..:..\...\)\(.....\)/\1/' > ${TEMPDATA}.hrm
+
 	hrm_avg=$( get_hrm_avg ${TEMPDATA}.hrm )
   fi
   if [ $plot_gps == 1 ]; then
 	grep -q "Alt" $gps_file  &&  use_alt=1  || use_alt=0
 	echo "use_alt=$use_alt"  >>  $DEF_FILE
 	
-	$GREP $gps_file > ${TEMPDATA}.gps
-  	sed -i "s:0x::g"  ${TEMPDATA}.gps
+	$GREP $gps_file  |  
+	sed 's/\(..:..:..\...\)\(.....\)/\1/' > ${TEMPDATA}.gps
 	
 	gps_avg=( $( get_gps_avg ${TEMPDATA}.gps ) )
   fi

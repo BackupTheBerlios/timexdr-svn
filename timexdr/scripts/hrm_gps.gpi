@@ -4,7 +4,7 @@
 #plot_hrm = 0
 
 # Set default ranges
-set xrange [0:*]
+set xrange [*:*]
 set yrange [0:*]
 set y2range [0:*]
 
@@ -29,7 +29,7 @@ if (plot_hrm != 1) pysize=0.31; pstep=0.33; 	\
 opos=0.99			# y-coordinate of pannel's origin
 
 set xdata time			# The x axis data is time
-set timefmt x "%H:%M:%S"	# The dates in the files look like 00:10:34
+set timefmt x "%Y-%m-%d %H:%M:%S"	# The dates in the files look like 00:10:34
 set format x ""
 unset xlabel
 
@@ -46,7 +46,7 @@ if (plot_hrm == 1) 		\
 	set origin 0,opos;	\
 	set ylabel "hr [bpm]";	\
 	set yrange [*:*];	\
-	plot "__tmp.hrm" using 1:2	\
+	plot "__tmp.hrm" using 1:3	\
 	title "Heart Rate HRM_AVG bpm" 	\
 	with line;		\
 	unset title	# Unset the title on top of the plot
@@ -59,9 +59,9 @@ set ylabel "v [km/h]"
 set y2label "p [min/km]"
 set ytics nomirror
 set y2tics nomirror
-plot [0:*] [0:*] '__tmp.gps' using 1:5		\
+plot [*:*] [0:*] '__tmp.gps' using 1:6		\
     title "Speed SPD_AVG km/h" with line,	\
-    '__tmp.gps' using 1:(60/(1.0*($5)) > 20 ? 20 : 60/(1.0*($5))) 	\
+    '__tmp.gps' using 1:(60/(1.0*($6)) > 20 ? 20 : 60/(1.0*($6))) 	\
     axis x1y2 title "Pace PACEM_AVG\'PACES_AVG\'\'" with line	
 # Unset the title again in case HRM data are not drawn this time
 unset title	# Unset the title on top of the plot
@@ -74,11 +74,11 @@ set ylabel "d [km]"
 if (use_alt == 1)				\
 	set y2label "a [m]"	;		\
 	set y2range [*:*]	;		\
-	plot [0:*] [0:*] 			\
-	'__tmp.gps' using 1:6			\
+	plot [*:*] [0:*] 			\
+	'__tmp.gps' using 1:7			\
 		title "Distance DST_FIN km"	\
 		with line,			\
-  	'__tmp.gps' using 1:($3 > 0 ? $7 : 1/0)	\
+  	'__tmp.gps' using 1:($4 > 0 ? $8 : 1/0)	\
 		axis x1y2 			\
 		title "Altitude ALT_AVG m" 	\
 		with line	;		\
@@ -88,8 +88,8 @@ if (use_alt == 1)				\
 else	unset y2label		;		\
 	set ytics mirror	;		\
 	unset y2tics		;		\
-	plot [0:*] [0:*]			\
-  	'__tmp.gps' using 1:6 			\
+	plot [*:*] [0:*]			\
+  	'__tmp.gps' using 1:7 			\
 		title "Distance DST_FIN km"	\
 		with line
 
@@ -106,10 +106,10 @@ set ytics 1
 set ytics  ( "Sky Search" 0, "Normal ACQ" 1, "2D Fix" 2, 	\
 	"3D Fix" 3, "GPS Failure" 4)
 set y2tics ( "Empty" 0, "Low (30%%)" 1, "60%%" 2, "Full" 3 )
-plot [0:*] [0:4.15]	\
-     '__tmp.gps' using 1:4 title "Battery" with line, \
-     '__tmp.gps' using 1:3 title "ACQ" with line,	\
-     '__tmp.gps' using 1:($2>3 ? 4 : $2) title "Status" with line
+plot [*:*] [0:4.15]	\
+     '__tmp.gps' using 1:5 title "Battery" with line, \
+     '__tmp.gps' using 1:4 title "ACQ" with line,	\
+     '__tmp.gps' using 1:($3>3 ? 4 : $3) title "Status" with line
 
 # On some terminals, nothing gets plotted until this command is issued
 unset multiplot

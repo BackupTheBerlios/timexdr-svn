@@ -1,3 +1,13 @@
+2007-01-22  Jan Merka <merka@highsphere.net>
+	* Version 1.30
+	* Output time stamps instead of elapsed session time (ISO8601 format)
+	* Convert hex numbers to integer - no more hex numbers in the *.gps
+	logs.
+	* Added gps2hst script that converts *.gsp files to Garmin *.hst
+	* Modified gps2gpx so the points are stored as track (previously
+	route), fixed some XML validation issues.
+	* Modified all scripts to work with the new output format (timestamps)
+
 2006-09-08  Jan Merka <merka@highsphere.net>
 	* Version 1.22 released (1.21 had a broken plot_timex_data script and 
 	a few typos) 

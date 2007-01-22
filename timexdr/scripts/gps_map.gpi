@@ -39,13 +39,13 @@ set yrange [0:ceil(dlat+2*map_offset)]
 set title "SES_DATE SES_TIME       Lon LON_AVG^o  Lat LAT_AVG^o"
 
 # Plot the waypoints
-plot '__tmp.gps' using 	(($3 > 0) ? (($11 - lon_min)*londist + 		\
-	map_offset):1/0):(($3 > 0) ? (($10 - lat_min)*latdist +		\
+plot '__tmp.gps' using 	(($4 > 0) ? (($12 - lon_min)*londist + 		\
+	map_offset):1/0):(($4 > 0) ? (($11 - lat_min)*latdist +		\
 	map_offset):1/0)						\
  	title "MAP_TITLE" with lines,					\
      '__tmp.gps' every 1000000 						\
-	using 	(($3 > 0) ? (($11 - lon_min)*londist + 			\
-	map_offset):1/0):(($3 > 0) ? (($10 - lat_min)*latdist + 	\
+	using 	(($4 > 0) ? (($12 - lon_min)*londist + 			\
+	map_offset):1/0):(($4 > 0) ? (($11 - lat_min)*latdist + 	\
 	map_offset):1/0)						\
  	title "Start" with points
 unset title
@@ -63,9 +63,9 @@ set y2label "v [km/h]"
 set yrange [*:*]
 set y2range [0:*]
 set samples 5000
-plot [0:*] [*:*] '__tmp.gps' using 6:(($3 > 0) ? ($7):1/0)	\
+plot [0:*] [*:*] '__tmp.gps' using 7:(($4 > 0) ? ($8):1/0)	\
 	title "Altitude ALT_AVG m" with lines,			\
-	'__tmp.gps' using 6:5 axis x1y2				\
+	'__tmp.gps' using 7:6 axis x1y2				\
 	title "Speed SPD_AVG km/h" with lines
 
 # On some terminals, nothing gets plotted until this command is issued

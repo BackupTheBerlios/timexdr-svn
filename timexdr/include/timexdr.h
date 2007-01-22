@@ -258,6 +258,7 @@ struct tdr_header {
 };
 
 struct tdr_session {
+  time_t start;
   struct tdr_session *next, *prev;
   struct tdr_header header, footer;
   unsigned char *data;

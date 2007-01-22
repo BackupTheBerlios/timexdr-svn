@@ -5,7 +5,6 @@
 # $Id$
 
 TMP_FILE=/tmp/$( basename $0 )_$$.tmp
-TIME_ZONE=$( date +%:z )
 FIX_TYPE=( "none" "none" "2d" "3d" )
 ROUTE_NAME="timexdr"
 ROUTE_DESC="Recorded by Timex Data Recorder"
@@ -23,7 +22,6 @@ usage() {
   echo -e "  -i <number>\tGPS route number [$ROUTE_ID]."
   echo -e "  -n <name>\tGPS route name [$ROUTE_NAME]"
   echo -e "  -o <out_file>\tSpecify a name for the output file."
-  echo -e "  -z <tzone>\tProvide time zone for the GPS data if different"
   echo -e "\t\tfrom localtime on the computer. Example, '-06:00' or '+05:00'." 
   echo
   echo "File 'file1' holds timexdr GPS (*.gps) data."
@@ -89,7 +87,7 @@ rte_point() {
 #	datetime lon lat alt spd pace dst acq
   echo "<trkpt lat=\"$lat\" lon=\"$lon\">"
   echo " <ele>$alt</ele>"
-  echo " <time>${datetime}${TIME_ZONE:-Z}</time>"
+  echo " <time>${datetime:0:25}:${datetime:25:2}</time>"
   echo " <fix>${FIX_TYPE[$acq]}</fix>"
   echo "</trkpt>"
 }
@@ -105,7 +103,6 @@ while getopts ":a:d:hi:n:o:z:" OPT; do
    i)  ROUTE_ID="$OPTARG" 	;;
    n)  ROUTE_NAME="$OPTARG" 	;;
    o)  out_file=$OPTARG 	;;
-   z)  TIME_ZONE=$OPTARG     	;;
    *)  echo "Unimplemented option -${OPTARG}"
        usage            	;;
   esac
@@ -128,30 +125,23 @@ gawk '{
   	#print $3, $4 
   }; 
   if (counter > 2) { 
-	split($1, time, ":"); 
-	dt_sec = time[3] + hms[3]; 
-	dt_min = time[2] + hms[2]; 
-	dt_hr  = time[1] + hms[1]; 
-	dt_day = ymd[3] ; 
-	dt_month = ymd[2]; 
-	dt_yr = ymd[1] ; 
-	lon = $11;
-	lat = $10;
-	alt = $7;
-	dist = $6;
-	spd = $5;
+	# Print time
+	printf "%sT%s\t", $1, $2;
+
+	lon = $12;
+	lat = $11;
+	alt = $8;
+	dist = $7;
+	spd = $6;
+	acq = $4;
 	if (spd > 0)    { pace = 60/spd } else { pace = 999 };
 	if (pace > 999) { pace = 999 };
-	split($3, acq, "x");
 	
 	# Make sure parameters are within limits
-	while (dt_sec >= 60) { dt_sec -= 60; dt_min += 1 }; 
-	while (dt_min >= 60) { dt_min -= 60; dt_hr += 1}; 
-	while (dt_hr >= 24)  { dt_hr -= 24; dt_day += 1 }; 
 	if (lon >= 180)      { lon -= 360 };
 	
 	# Find min and max longitude/latitude
-	if (acq[2] > 0) {
+	if (acq > 0) {
 		cntr2 += 1;
 		if (cntr2 == 1) {
 			minlat = lat;
@@ -166,11 +156,8 @@ gawk '{
 			}
 	}
 
-	#print $1; 
-	printf "%4.4d-%2.2d-%2.2dT%2.2d:%2.2d:%05.2f\t", 
-		dt_yr, dt_month, dt_day, dt_hr, dt_min, dt_sec	;
 	printf "%15.9f\t%14.9f\t%7.1f\t%5.1f\t%9.5f\t%7.3f\t%1.1d\n",
-		lon, lat, alt, spd, pace, dist, acq[2] ; 
+		lon, lat, alt, spd, pace, dist, acq ; 
    };
  } END { 
    printf "%15.9f\t%15.9f\t%14.9f\t%14.9f\n",
