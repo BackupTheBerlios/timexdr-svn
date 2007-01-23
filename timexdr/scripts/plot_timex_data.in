@@ -25,7 +25,7 @@ prefix=@prefix@
 datarootdir=@datarootdir@
 HRM_ONLY_SCRIPT=@SCRIPTS_DIR@/hrm_only.gpi
 HRM_GPS_SCRIPT=@SCRIPTS_DIR@/hrm_gps.gpi
-GPS_MAP_SCRIPT=@SCRIPTS_DIR@/gps_map.gpi
+GPS_MAP_SCRIPT=@SCRIPTS_DIR@/gps_map.gpi                      
 
 # ---------------
 
@@ -59,11 +59,11 @@ get_file_type() {
     if grep -q "HRM" "$1" 2>/dev/null ; then
 	hrm_file="$1"
 	plot_hrm=1
-	get_session_time $hrm_file
+	#get_session_time $hrm_file
     elif grep -q "GPS" "$1" 2>/dev/null ; then
 	gps_file="$1"
 	plot_gps=1
-	get_session_time $gps_file
+	#get_session_time $gps_file
     fi		
     shift 1
   done
@@ -106,15 +106,48 @@ check_gnuplot() {
 }
 
 get_hrm_avg() {
-  gawk '{ hrm += $3 }
-  	END { printf "%3d\n", hrm/NR }' $1  
+  gawk '{ counter += 1;
+  	  hrm += $3;
+	  if (counter == 1) {
+                    split($1, date, "-");
+                    split($2, tmp, ".");
+                    split(tmp[1], time, ":");
+	 	    str = date[1] " " date[2] " " date[3];
+	            str = str " " time[1] " " time[2] " " time[3];
+	            t0 = mktime(str);
+	  }; 
+	} END { 
+		split($1, date, "-");
+		split($2, tmp, ".");
+		split(tmp[1], time, ":");
+		str = date[1] " " date[2] " " date[3];
+		str = str " " time[1] " " time[2] " " time[3];
+		t1 = mktime(str);
+		dt = t1 - t0;
+
+		h = int(dt/3600);
+		m = int((dt % 3600)/60);
+		s = dt % 60;
+
+		# Start time
+		printf "%s", strftime("%F %T", t0);
+		# Elapsed time
+		if (h == 0) {
+			printf " %2.2dm%2.2ds %d ", m, s, dt;
+		} else {
+			printf " %2.2dh%2.2dm%2.2ds %d ", h, m, s, dt;
+		}
+		# HRM
+      		printf "%3d\n", hrm/NR; 
+  }' $1  
 }
 
 get_gps_avg() {
 # Returns distance; average speed, average pace (minutes and seconds), latitude,
 # longitude, and altitude; minimum and maximum latitude and longitude
-  gawk '{ if ($4 > 0)
-  	  { alt += $8 ; lat += $11 ; lon += $12 ; counter += 1; }
+  gawk '{ 
+  	  # Advance only if GPS (ACQ>0) has a lock on satellites
+  	  if ($4 > 0) { alt += $8 ; lat += $11 ; lon += $12 ; counter += 1; }
           if (counter == 1)
 	  { lat_min = $11 ; lat_max = $11 ; lon_min = $12 ; lon_max = $12
           } else
@@ -123,28 +156,42 @@ get_gps_avg() {
 	    if (lon_min > $12) lon_min = $12
 	    if (lon_max < $12) lon_max = $12
 	  }
-	  if (counter == 3) {
-		  split($1, date0, "-");
+	  if (counter == 1) {
+		  split($1, date, "-");
 		  split($2, tmp, ".");
-		  split(tmp[1], time0, ":");
-		  str = date0[1] " " date0[2] " " date0[3];
-		  str = str " " time0[1] " " time0[2] " " time0[3];
+		  split(tmp[1], time, ":");
+		  str = date[1] " " date[2] " " date[3];
+		  str = str " " time[1] " " time[2] " " time[3];
 		  t0 = mktime(str);
 	  };
         }
   	END {	distance = $7 ; 
-		split($1, date0, "-");
+		split($1, date, "-");
 		split($2, tmp, ".");
-		split(tmp[1], time0, ":");
-		str = date0[1] " " date0[2] " " date0[3];
-		str = str " " time0[1] " " time0[2] " " time0[3];
+		split(tmp[1], time, ":");
+		str = date[1] " " date[2] " " date[3];
+		str = str " " time[1] " " time[2] " " time[3];
 		t1 = mktime(str);
-		time = t1 - t0;
-		speed = distance*3600/time                      ;
+		dt = t1 - t0;
+		speed = distance*3600/dt                        ;
 		# Calculate pace and split it in minutes and seconds
 		pace = 60/speed                                 ;
 		pace_m = int(pace)                              ;
 		pace_s = int((pace - pace_m)*60 + 0.5)          ;
+
+		h = int(dt/3600);
+		m = int((dt % 3600)/60);
+		s = dt % 60;
+
+		# Start time
+		printf "%s", strftime("%F %T", t0);
+
+		# Elapsed time
+		if (h == 0) {
+			printf " %2.2dm%2.2ds %d ", m, s, dt;
+		} else {
+			printf " %2.2dh%2.2dm%2.2ds %d ", h, m, s, dt;
+		}
 		# Print total distance; average speed, pace, 
 		# latitude, longitude, and altitude;
 		# minimum and maximum latitude and longitude
@@ -192,7 +239,8 @@ EOF
 	$GREP $hrm_file  |  
 	sed 's/\(..:..:..\...\)\(.....\)/\1/' > ${TEMPDATA}.hrm
 
-	hrm_avg=$( get_hrm_avg ${TEMPDATA}.hrm )
+	hrm_avg=( $( get_hrm_avg ${TEMPDATA}.hrm ) )
+	ses_start="${hrm_avg[0]} ${hrm_avg[1]}"
   fi
   if [ $plot_gps == 1 ]; then
 	grep -q "Alt" $gps_file  &&  use_alt=1  || use_alt=0
@@ -202,30 +250,34 @@ EOF
 	sed 's/\(..:..:..\...\)\(.....\)/\1/' > ${TEMPDATA}.gps
 	
 	gps_avg=( $( get_gps_avg ${TEMPDATA}.gps ) )
+	ses_start="${gps_avg[0]} ${gps_avg[1]}"
   fi
- 
-  sed_cmd="s:HRM_AVG:$hrm_avg:
-	   s:DST_FIN:${gps_avg[0]}:
-	   s:SPD_AVG:${gps_avg[1]}:
-	   s:PACEM_AVG:${gps_avg[2]}:
-	   s:PACES_AVG:${gps_avg[3]}:
-	   s:LAT_AVG:${gps_avg[4]}:
-	   s:LON_AVG:${gps_avg[5]}:
-	   s:ALT_AVG:${gps_avg[6]}:
+  
+  sed_cmd="s:HRM_AVG:${hrm_avg[4]}:
+	   s:DST_FIN:${gps_avg[4]}:
+	   s:SPD_AVG:${gps_avg[5]}:
+	   s:PACEM_AVG:${gps_avg[6]}:
+	   s:PACES_AVG:${gps_avg[7]}:
+	   s:LAT_AVG:${gps_avg[8]}:
+	   s:LON_AVG:${gps_avg[9]}:
+	   s:ALT_AVG:${gps_avg[10]}:
 	   s:MAP_TITLE:$map_title:
-	   s:SES_DATE:$ses_date:
-	   s:SES_TIME:$ses_time:
+	   s/SES_START/$ses_start/
+	   s:HRM_ELAPSED_TIME:${hrm_avg[2]-x}:
+	   s:HRM_ELAPSED_TIME_SEC:${hrm_avg[3]}:
+	   s:GPS_ELAPSED_TIME:${gps_avg[2]-x}:
+	   s:GPS_ELAPSED_TIME_SEC:${gps_avg[3]}:
  	   "
   if [ $plot_gps == 0 ]; then  # Only HRM
 	  cat $DEF_FILE $HRM_ONLY_SCRIPT	|
 	  sed "$sed_cmd"			|
 	  gnuplot $OPTS
   elif [ $plot_map == 1 ]; then # Plot GPS map
-	  echo "lat_avg=${gps_avg[4]}"		>>  $DEF_FILE
-	  echo "lat_min=${gps_avg[7]}"		>>  $DEF_FILE
-	  echo "lat_max=${gps_avg[8]}"		>>  $DEF_FILE
-	  echo "lon_min=${gps_avg[9]}"		>>  $DEF_FILE
-	  echo "lon_max=${gps_avg[10]}"		>>  $DEF_FILE
+	  echo "lat_avg=${gps_avg[8]}"		>>  $DEF_FILE
+	  echo "lat_min=${gps_avg[11]}"		>>  $DEF_FILE
+	  echo "lat_max=${gps_avg[12]}"		>>  $DEF_FILE
+	  echo "lon_min=${gps_avg[13]}"		>>  $DEF_FILE
+	  echo "lon_max=${gps_avg[14]}"		>>  $DEF_FILE
 	  cat $DEF_FILE $GPS_MAP_SCRIPT		|
 	  sed "$sed_cmd"			|
 	  gnuplot $OPTS

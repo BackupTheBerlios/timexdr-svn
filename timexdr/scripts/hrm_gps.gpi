@@ -37,7 +37,7 @@ unset xlabel
 # and brings up a new prompt ("multiplot>" instead of "gnuplot>")
 set multiplot
 
-set title "Starting on SES_DATE at SES_TIME" ,-1
+set title "Starting on SES_START (HRM: HRM_ELAPSED_TIME GPS: GPS_ELAPSED_TIME)" ,-1
 
 # Heart rate
 if (plot_hrm == 1) 		\

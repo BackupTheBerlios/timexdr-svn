@@ -36,7 +36,7 @@ set xlabel "East [km] --->"
 set ylabel "North [km] --->"
 set xrange [0:ceil(dlon+2*map_offset)]
 set yrange [0:ceil(dlat+2*map_offset)]
-set title "SES_DATE SES_TIME       Lon LON_AVG^o  Lat LAT_AVG^o"
+set title "SES_START (GPS_ELAPSE_TIME)       Lon LON_AVG^o  Lat LAT_AVG^o"
 
 # Plot the waypoints
 plot '__tmp.gps' using 	(($4 > 0) ? (($12 - lon_min)*londist + 		\
