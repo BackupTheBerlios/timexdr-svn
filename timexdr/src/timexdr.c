@@ -591,6 +591,8 @@ static struct tdr_session *split_data(unsigned char *databuf) {
     stm.tm_hour = next->header.hour;
     stm.tm_min = next->header.min;
     stm.tm_sec = next->header.sec;
+    /* Negative means that we don't know if daylight saving time is in effect */
+    stm.tm_isdst = -1;
 
     next->start = mktime(&stm);
     

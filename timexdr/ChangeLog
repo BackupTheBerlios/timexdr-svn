@@ -1,4 +1,10 @@
+2007-03-15  Jan Merka <merka@highsphere.net>
+	* Fix a daylight saving time bug where the record time stamps did not
+	match headers
+	* Version 1.31
+
 2007-01-22  Jan Merka <merka@highsphere.net>
+	* Modify plot_timex_data to display elapsed time
 	* Version 1.30
 	* Output time stamps instead of elapsed session time (ISO8601 format)
 	* Convert hex numbers to integer - no more hex numbers in the *.gps
