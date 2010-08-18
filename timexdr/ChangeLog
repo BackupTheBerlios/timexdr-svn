@@ -1,3 +1,10 @@
+2010-08-18	Jan Merka <merka@highsphere.net>
+	* Remove Makefile from the repository
+	* Version 1.32
+
+2010-08-14	Mike <m_maass@web.de>
+	* Fix the code for Ubunut 10.04
+
 2007-03-15  Jan Merka <merka@highsphere.net>
 	* Fix a daylight saving time bug where the record time stamps did not
 	match headers
