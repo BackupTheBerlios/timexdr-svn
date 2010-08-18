@@ -400,7 +400,7 @@ static void get_fw_version(usb_dev_handle *dev) {
     tdr_info.fw_usb = DEC_FW_VER(buf[3], buf[4], buf[5]);
   }
 
-  if (verbosity) printf("Firmware version:\tMain:\t%u\n\t\t\tUSB:\t%u\n", 
+  if (verbosity) printf("Firmware version:\tMain:\t%li\n\t\t\tUSB:\t%li\n", 
 			tdr_info.fw_main, tdr_info.fw_usb);
 }
 
@@ -415,7 +415,7 @@ static void get_eeprom_size(usb_dev_handle *dev) {
 				       (buf[5] << 16)) + 1;
   }
 
-  if (verbosity) printf("EEPROM size:\t%u bytes (%u kB)\n", 
+  if (verbosity) printf("EEPROM size:\t%li bytes (%li kB)\n", 
 			tdr_info.eeprom_size, tdr_info.eeprom_size/1024);
 }
 
@@ -481,7 +481,7 @@ static long int eeprom_usage(usb_dev_handle *dev) {
   bytes = DEC_EEPROM_USAGE(buf[2], buf[3], buf[4]);
 
   if (verbosity) {
-    printf("EEPROM used:\t%u bytes (%u%% in use)\n", bytes, 
+    printf("EEPROM used:\t%lu bytes (%lu%% in use)\n", bytes, 
 	   (bytes + 1)*100/tdr_info.eeprom_size);
   }
 
@@ -620,7 +620,7 @@ static struct tdr_session *split_data(unsigned char *databuf) {
   return (i == 0) ? NULL : first;
 }
 
-#define TIME_STR_LENGTH                    27      /* in bytes */
+#define TIME_STR_LENGTH                    28      /* in bytes */
 static char time_str[TIME_STR_LENGTH];
 
 /*
@@ -653,7 +653,7 @@ static void time2str(char *str_time, const time_t st, double seconds) {
   }
 
   /* Final assembly */
-  sprintf(str_time, "%s.%02d%s", s1, fsec, s2);
+  sprintf(str_time, "%s.%02ld%s", s1, fsec, s2);
 }
 
 /* 
@@ -938,7 +938,7 @@ static void gps_packet_15(time_t st, double *split_time,
     (double)((int)(ses->data[bzero+16] & 0x03))*0.25;
 
   time2str(time_str, st, *split_time);
-  if (fprintf(sfp, "%s\t%u\t%u\t%u\t%5.1f\t%9.3f\t%7.1f\t%4d\t%4d\t%14.9f\t%15.9f\t%5.2f\n", 
+  if (fprintf(sfp, "%s\t%u\t%u\t%u\t%5.1f\t%9.3f\t%7.1f\t%4ld\t%4ld\t%14.9f\t%15.9f\t%5.2f\n", 
 	      time_str, status, acq, battery, 
 	      unit_conv(speed), unit_conv(dist),
 	      alt, htrue, hmag, lat, lon, sec) < 0) {
@@ -1074,7 +1074,7 @@ static void multi_session(const struct tdr_session *session) {
  * Prints session data.
  */
 static void print_session(const struct tdr_session *session) {
-  struct tdr_session *ses;
+  const struct tdr_session *ses;
 
   for (ses = session; ses;  ses = ses->next) {
  
@@ -1251,7 +1251,7 @@ int main(int argc, char *argv[])
     bytes = eeprom_usage(dev);
 
     if (verbosity >= 3) {
-      printf("Expecting a transfer of %u (0x%x) bytes in %u packets\n", 
+      printf("Expecting a transfer of %lu (0x%lx) bytes in %lu packets\n", 
 	     bytes, bytes, num_of_pages(bytes, EEPROM_PAGESIZE));
     }
 
@@ -1273,7 +1273,7 @@ int main(int argc, char *argv[])
      */
     timeout = (bytes / 2048 + 1) * 10 * TIMEXDR_CTRL_TIMEOUT;
 
-    if (verbosity > 3) printf("Data download will take up to %d seconds\n", 
+    if (verbosity > 3) printf("Data download will take up to %lu seconds\n", 
 			      timeout/1000);
 
     /* Read the data from the recorder */
@@ -1284,7 +1284,7 @@ int main(int argc, char *argv[])
       i = timex_int_read(dev, databuf, bufsize, timeout);
       t1 = time(NULL);
       
-      if (verbosity) printf("Data transfer time was %d seconds\n", t1-t0);
+      if (verbosity) printf("Data transfer time was %lu seconds\n", t1-t0);
     }
     
     i = timex_ctrl(dev, UPLOAD_DONE, DEFAULT_MICRO, buf, RESPONSE_BUFSIZE);
